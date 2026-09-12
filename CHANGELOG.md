@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 4.0.0-alpha.2 - 2026-09-12
+
+tcpdump source-address parsing fix.
+
+### Changed
+
+- Prefer the `SA:` source address when tcpdump labels multiple MAC addresses on a captured packet.
+- Preserve the existing first-MAC fallback for capture formats that do not provide an `SA:` label.
+- Added regression tests covering both source-address selection and fallback behavior.
+
+### User action
+
+- No configuration changes are required.
+- Existing button and alias configuration remains unchanged.
+
 ## 4.0.0-alpha.1 - 2026-09-12
 
 Testing and CI foundation alpha.
