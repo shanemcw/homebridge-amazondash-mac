@@ -72,6 +72,23 @@ function makeAccessory(alias) {
   };
 }
 
+function makePacketPlatform() {
+  const Platform = loadPlatform();
+  const api = { on() {} };
+  const platform = new Platform(() => {}, { debug: 1 }, api);
+  const accessory = {
+    displayName: 'Packet Test Button',
+    context: {
+      lastTriggered: null
+    }
+  };
+
+  platform.accessories['AA:BB:CC:DD:EE:FF'] = accessory;
+  platform.alias['AA:BB:CC:DD:EE:FF'] = 'AA:BB:CC:DD:EE:FF';
+
+  return { platform, accessory };
+}
+
 test('registers as the expected dynamic Homebridge platform', () => {
   loadPlatform();
 });
@@ -87,4 +104,36 @@ test('normalizes configured alias MAC addresses', () => {
   assert.equal(platform.alias['11:22:33:44:55:66'], '11:22:33:44:55:66');
   assert.equal(platform.alias['AA:BB:CC:DD:EE:FF'], '11:22:33:44:55:66');
   assert.equal(platform.alias['AA:BB:CC:DD:EE:01'], '11:22:33:44:55:66');
+});
+
+test('prefers tcpdump SA address when BSSID appears first', () => {
+  const { platform, accessory } = makePacketPlatform();
+  let triggered = null;
+
+  platform.dashEventWithAccessory = (self, currentAccessory) => {
+    triggered = currentAccessory;
+  };
+
+  platform.handleOutput(
+    platform,
+    'BSSID:11:22:33:44:55:66 SA:AA:BB:CC:DD:EE:FF DA:FF:FF:FF:FF:FF:FF'
+  );
+
+  assert.equal(triggered, accessory);
+});
+
+test('falls back to first MAC address when tcpdump SA label is absent', () => {
+  const { platform, accessory } = makePacketPlatform();
+  let triggered = null;
+
+  platform.dashEventWithAccessory = (self, currentAccessory) => {
+    triggered = currentAccessory;
+  };
+
+  platform.handleOutput(
+    platform,
+    'AA:BB:CC:DD:EE:FF > 11:22:33:44:55:66 broadcast packet'
+  );
+
+  assert.equal(triggered, accessory);
 });
