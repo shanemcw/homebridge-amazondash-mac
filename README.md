@@ -237,6 +237,7 @@ If `tcpdump` is not (yet) permitted to run by the `homebridge` user via `sudo` w
 
 You'll need to configure `tcpdump` to be run via `sudo` by the `homebridge` user without a password.
 * For this configuration, you'll need the location of `tcpdump` on your system via e.g. `whereis tcpdump`.
+
 #### Method One: If you already have an entry for the `homebridge` user in your `sudoers` file
 
 * Add the full path of `tcpdump` at the end of the `homebridge` entry in the `/etc/sudoers` file via the `visudo` command to edit that file:
