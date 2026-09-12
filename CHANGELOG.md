@@ -9,13 +9,15 @@ tcpdump source-address parsing fix.
 ### Changed
 
 - Prefer the `SA:` source address when tcpdump labels multiple MAC addresses on a captured packet.
-- Preserve the existing first-MAC fallback for capture formats that do not provide an `SA:` label.
-- Added regression tests covering both source-address selection and fallback behavior.
+- Preserve the existing first-MAC fallback when tcpdump does not provide an `SA:` label.
+- Keep `airodump-ng` parsing on the existing first-MAC behavior.
+- Added regression tests for tcpdump source-address selection, tcpdump fallback behavior, and the `airodump-ng` parsing path.
 
 ### User action
 
 - No configuration changes are required.
 - Existing button and alias configuration remains unchanged.
+- `airodump-ng` remains supported as the alternate capture method for environments where tcpdump is not usable.
 
 ## 4.0.0-alpha.1 - 2026-09-12
 
