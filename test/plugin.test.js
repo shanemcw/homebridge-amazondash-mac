@@ -72,7 +72,7 @@ function makeAccessory(alias) {
   };
 }
 
-function makePacketPlatform() {
+function makePacketPlatform(dumpname = 'tcpdump') {
   const Platform = loadPlatform();
   const api = { on() {} };
   const platform = new Platform(() => {}, { debug: 1 }, api);
@@ -83,6 +83,7 @@ function makePacketPlatform() {
     }
   };
 
+  platform.dumpname = dumpname;
   platform.accessories['AA:BB:CC:DD:EE:FF'] = accessory;
   platform.alias['AA:BB:CC:DD:EE:FF'] = 'AA:BB:CC:DD:EE:FF';
 
@@ -107,7 +108,7 @@ test('normalizes configured alias MAC addresses', () => {
 });
 
 test('prefers tcpdump SA address when BSSID appears first', () => {
-  const { platform, accessory } = makePacketPlatform();
+  const { platform, accessory } = makePacketPlatform('tcpdump');
   let triggered = null;
 
   platform.dashEventWithAccessory = (self, currentAccessory) => {
@@ -123,7 +124,7 @@ test('prefers tcpdump SA address when BSSID appears first', () => {
 });
 
 test('falls back to first MAC address when tcpdump SA label is absent', () => {
-  const { platform, accessory } = makePacketPlatform();
+  const { platform, accessory } = makePacketPlatform('tcpdump');
   let triggered = null;
 
   platform.dashEventWithAccessory = (self, currentAccessory) => {
@@ -133,6 +134,22 @@ test('falls back to first MAC address when tcpdump SA label is absent', () => {
   platform.handleOutput(
     platform,
     'AA:BB:CC:DD:EE:FF > 11:22:33:44:55:66 broadcast packet'
+  );
+
+  assert.equal(triggered, accessory);
+});
+
+test('keeps first-MAC parsing for airodump-ng', () => {
+  const { platform, accessory } = makePacketPlatform('airodump-ng');
+  let triggered = null;
+
+  platform.dashEventWithAccessory = (self, currentAccessory) => {
+    triggered = currentAccessory;
+  };
+
+  platform.handleOutput(
+    platform,
+    'AA:BB:CC:DD:EE:FF 11:22:33:44:55:66 wireless packet'
   );
 
   assert.equal(triggered, accessory);
