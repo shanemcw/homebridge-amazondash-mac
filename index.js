@@ -225,9 +225,9 @@ DashPlatform.prototype.handleOutput = (self, data) => {
     let lines = ('' + data).match(/[^\r\n]+/g);
     if (!lines) { return; }
     for (let line of lines) {
-      // prefer the source address when tcpdump labels it; otherwise use the first MAC per line
+      // prefer tcpdump's labeled source address; preserve first-MAC parsing for other capture formats
       let upperLine = line.toUpperCase();
-      let source = upperLine.match(/\bSA:((?:[\dA-F]{2}:){5}[\dA-F]{2})\b/);
+      let source = (self.dumpname === 'tcpdump') ? upperLine.match(/\bSA:((?:[\dA-F]{2}:){5}[\dA-F]{2})\b/) : null;
       var matches = source ? [source[1]] : upperLine.match(/(?:[\dA-F]{2}:){5}[\dA-F]{2}/g);
       if (matches && (matches.length > 0)) {
         if ((self.debug == 3) || (self.debug == 4)) {
