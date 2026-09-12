@@ -42,7 +42,6 @@ DashPlatform.prototype.configureAccessory = function(accessory) {
     return;
     }
   if (self.debug >= 2) { self.log(`\x1b[4;97m${accessory.displayName}\x1b[0m is ${accessory.context.mac}`); }
-  accessory.reachable = true;
   accessory.context.lastTriggered = null;
   accessory
     .getService(Service.AccessoryInformation)
@@ -303,7 +302,6 @@ DashPlatform.prototype.addAccessory = function(button) {
     }
   var uuid = UUIDGen.generate(button.MAC);
   var newAccessory = new Accessory(button.name, uuid, 15); // 15 = PROGRAMMABLE_SWITCH_TCTYPE
-  newAccessory.reachable = true;
   newAccessory.context.doublePress   = button.doublePress;
   newAccessory.context.lastTriggered = null;
   newAccessory.context.mac           = button.MAC;
