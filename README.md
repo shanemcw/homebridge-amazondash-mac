@@ -219,7 +219,7 @@ This plugin uses `tcpdump`'s ability to report on MAC addresses visible to the W
 ```
 sudo tcpdump -i wlan0 --monitor-mode
 ```
-* Note: It has been seen that `tcpdump` may fail with `--monitor-mode` with the error "That device doesn't support monitor mode" although the device is reporting it is in and seemingly working in monitor mode via `iwconfig`, and demonstrated to work in an alternate OS version. This issue has been seen with the PAU05 device in *Jammy Jellyfish Ubuntu*. Under these conditions, using `airodump-ng` as an alternative to `tcpdump` is likely a workable option. To use this option, follow the instructions for `tcpdump` but install `aircrack-ng` and permit `airodump-ng` to be run via `sudo` without a password. Enable the setting *Use airodump-ng instead of tcpdump* in this plugin's settings.
+* Note: It has been seen that `tcpdump` may fail with `--monitor-mode` with the error "That device doesn't support monitor mode" although the device is reporting it is in and seemingly working in monitor mode via `iwconfig`, and demonstrated to work in an alternate OS version. This issue has been seen with the PAU06 device in *Jammy Jellyfish Ubuntu*. Under these conditions, using `airodump-ng` as an alternative to `tcpdump` is likely a workable option. To use this option, follow the instructions for `tcpdump` but install `aircrack-ng` and permit `airodump-ng` to be run via `sudo` without a password. Enable the setting *Use airodump-ng instead of tcpdump* in this plugin's settings.
 
 ### Installing `tcpdump`
 * If the above test failed because `tcpdump` is not installed, install `tcpdump`:
@@ -237,7 +237,6 @@ If `tcpdump` is not (yet) permitted to run by the `homebridge` user via `sudo` w
 
 You'll need to configure `tcpdump` to be run via `sudo` by the `homebridge` user without a password.
 * For this configuration, you'll need the location of `tcpdump` on your system via e.g. `whereis tcpdump`.
-
 #### Method One: If you already have an entry for the `homebridge` user in your `sudoers` file
 
 * Add the full path of `tcpdump` at the end of the `homebridge` entry in the `/etc/sudoers` file via the `visudo` command to edit that file:
