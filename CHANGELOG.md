@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 4.0.0-alpha.1 - 2026-09-12
+
+Testing and CI foundation alpha.
+
+### Changed
+
+- Added automated tests using the built-in Node.js test runner.
+- Added initial coverage for Homebridge platform registration and alias MAC address normalization.
+- Added GitHub Actions test coverage for Node.js 22 and 24.
+
+### User action
+
+- No configuration changes are required.
+- Runtime behavior is unchanged from `4.0.0-alpha.0`.
+
 ## 4.0.0-alpha.0 - 2026-09-12
 
 Homebridge 2 compatibility alpha.
