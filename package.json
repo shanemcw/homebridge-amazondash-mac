@@ -23,8 +23,8 @@
   "deprecated": false,
   "description": "A modern (post-2019) Homebridge-verified Amazon Dash plugin for Homebridge. Requires elevated privileges to configure and a WiFi device in monitor mode.",
   "engines": {
-    "homebridge": ">=1.3.0",
-    "node": ">=8.9.0"
+    "homebridge": "^1.6.0 || ^2.0.0",
+    "node": "^22.12.0 || ^24.0.0"
   },
   "funding": {
     "type": "paypal",
@@ -50,7 +50,7 @@
   "scripts": {
     "test": "echo \"No tests defined.\" && exit 1"
   },
-  "version": "3.3.1",
+  "version": "4.0.0-alpha.0",
   "dependencies": {
     "express": "^4.17.3"
   }
