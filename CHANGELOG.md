@@ -12,6 +12,7 @@ tcpdump source-address parsing fix.
 - Preserve the existing first-MAC fallback when tcpdump does not provide an `SA:` label.
 - Keep `airodump-ng` parsing on the existing first-MAC behavior.
 - Added regression tests for tcpdump source-address selection, tcpdump fallback behavior, and the `airodump-ng` parsing path.
+- Corrected the Jammy Jellyfish troubleshooting note to identify the tested Panda adapter as PAU06.
 
 ### User action
 
