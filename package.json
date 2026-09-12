@@ -48,9 +48,9 @@
     "url": "git://github.com/shanemcw/homebridge-amazondash-mac.git"
   },
   "scripts": {
-    "test": "echo \"No tests defined.\" && exit 1"
+    "test": "node --test"
   },
-  "version": "4.0.0-alpha.0",
+  "version": "4.0.0-alpha.1",
   "dependencies": {
     "express": "^4.17.3"
   }
