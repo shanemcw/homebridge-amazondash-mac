@@ -265,7 +265,7 @@ homebridge    ALL=(ALL) NOPASSWD:SETENV: /usr/sbin/shutdown, /usr/bin/npm, /usr/
 
 #### Method Two: If you don't have an entry for the `homebridge` user in your `sudoers` file
 
-This method is creating a new file (e.g. named `amazondash`—it could be anything) with `root` permissions (e.g. via `sudo gedit amazondash`) in the `/etc/sudoers.d` directory. All files in the `/etc/sudoers.d` directory are included via the `/etc/sudoers` file by the `#includedir /etc/sudoers.d`. Note the `#` does not indicate a comment, as one would think.
+This method is creating a new file in the `/etc/sudoers.d` directory. All files in the `/etc/sudoers.d` directory are included via the `/etc/sudoers` file by the `#includedir /etc/sudoers.d`. Note the `#` does not indicate a comment, as one would think.
 
 1. Create a new file (e.g. named `amazondash`—it could be anything) with `root` permissions (e.g. via `sudo gedit amazondash`) in the `/etc/sudoers.d` directory.
 1. Add the line `homebridge ALL=(ALL) NOPASSWD: /usr/sbin/tcpdump` (with your path to `tcpdump`). Save and exit.
