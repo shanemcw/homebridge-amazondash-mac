@@ -21,7 +21,7 @@ function DashPlatform(log, config, api) {
   self.config       = config                   || { "platform": "AmazonDash-MAC" };
   self.buttons      = self.config.buttons      || [];
   self.timeout      = self.config.timeout      || 7500; // rate limit greater than connection attempt time in ms
-  self.debug        = self.config.debug        || 1; // 0-4, 10
+  self.debug        = self.config.debug        ?? 1; // 0-4, 10
   self.manufacturer = self.config.manufacturer || "Amazon";
   self.alias        = {}; // additional MACs can masquerade as accessory MAC via this alias map
   self.accessories  = {};
@@ -29,9 +29,12 @@ function DashPlatform(log, config, api) {
   self.init         = null;
   self.wifidump     = null;
   self.dumpname     = null;
+  self.shuttingDown = false;
+  self.restartTimer = null;
   if (api) {
     self.api = api;
     self.api.on('didFinishLaunching', self.didFinishLaunching.bind(this));
+    self.api.on('shutdown', self.handleShutdown.bind(this));
   }
 }
 
@@ -183,9 +186,22 @@ DashPlatform.prototype.didFinishLaunching = function() {
     }
 }
 
+DashPlatform.prototype.handleShutdown = function() {
+  var self = this;
+  self.shuttingDown = true;
+  if (self.restartTimer) {
+    clearTimeout(self.restartTimer);
+    self.restartTimer = null;
+    }
+  if (self.wifidump && !self.wifidump.killed && typeof self.wifidump.kill === 'function') {
+    self.wifidump.kill();
+    }
+}
+
 DashPlatform.prototype.spawnDump = (self) => {
     var sa;
-    
+
+    if (self.shuttingDown) { return; }
     self.init = false;
     
     if (self.config.airInstead) {
@@ -202,17 +218,22 @@ DashPlatform.prototype.spawnDump = (self) => {
     self.wifidump.stderr.on('data', (data) => { self.handleError(self, data);  });
     
     self.wifidump.on('exit',  (code) => {
-        self.log(`\x1b[31m[ERROR]\x1b[0m ${self.dumpname} exited, code ${code}`); 
+        if (!self.shuttingDown) { self.log(`\x1b[31m[ERROR]\x1b[0m ${self.dumpname} exited, code ${code}`); }
         });
                                 
     self.wifidump.on('close', (code) => {
+        self.wifidump = null;
+        if (self.shuttingDown) { return; }
         self.log(`\x1b[31m[ERROR]\x1b[0m ${self.dumpname} closed, code ${code}`);
         self.log(`\x1b[33m[INFO]\x1b[0m attempting ${self.dumpname} restart in 60 seconds`);
-        setTimeout( () => { self.spawnDump(self); }, 60000 );
+        self.restartTimer = setTimeout( () => {
+          self.restartTimer = null;
+          if (!self.shuttingDown) { self.spawnDump(self); }
+          }, 60000 );
         });
         
     self.wifidump.on('error', (err)  => {
-        self.log(`\x1b[31m[ERROR]\x1b[0m ${self.dumpname} error ${err}`);        
+        if (!self.shuttingDown) { self.log(`\x1b[31m[ERROR]\x1b[0m ${self.dumpname} error ${err}`); }
         });
 }
 
@@ -270,7 +291,7 @@ DashPlatform.prototype.handleError = (self, data) => {
         }
       if (/listening/.test(line)) { 
         let n = line.match(/on ([^\s,]+)/);
-        if (n[1]) {
+        if (n && n[1]) {
           if (self.debug >= 1) { self.log(`Wifi listening on interface \x1b[4;97m${n[1]}\x1b[0m`); }
           continue;
           }
@@ -341,16 +362,13 @@ DashPlatform.prototype.addAccessory = function(button) {
 
 DashPlatform.prototype.removeAccessory = function(accessory) {
   var self = this;
-  if (!accessory.context.mac) {
+  if (!accessory || !accessory.context || !accessory.context.mac) {
     self.log(`\x1b[31m[ERROR]\x1b[0m removeAccessory called for malformed accessory (e.g. "MAC" missing)`);
     return;
     }
-  if (accessory) {
-   if (self.debug >= 1) { self.log(`\x1b[33m[INFO]\x1b[0m removing \x1b[4;97m${accessory.displayName}\x1b[0m`);
-    self.api.unregisterPlatformAccessories("homebridge-amazondash-mac", "AmazonDash-MAC", [accessory]);
-    delete self.accessories[accessory.context.mac];
-    }
-  }
+  if (self.debug >= 1) { self.log(`\x1b[33m[INFO]\x1b[0m removing \x1b[4;97m${accessory.displayName}\x1b[0m`); }
+  self.api.unregisterPlatformAccessories("homebridge-amazondash-mac", "AmazonDash-MAC", [accessory]);
+  delete self.accessories[accessory.context.mac];
 }
 
 DashPlatform.prototype.configurationRequestHandler = function(context, request, callback) { }
