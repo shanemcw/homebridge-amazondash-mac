@@ -2,8 +2,9 @@
 //   forked from jourdant/homebridge-amazondash-ng
 //    forked from KhaosT/homebridge-amazondash
 
-const express = require('express');
-const spawn   = require('child_process').spawn;
+const express   = require('express');
+const spawn     = require('child_process').spawn;
+const spawnSync = require('child_process').spawnSync;
 
 var Accessory, Service, Characteristic, UUIDGen;
 
@@ -198,6 +199,27 @@ DashPlatform.prototype.handleShutdown = function() {
     }
 }
 
+DashPlatform.prototype.commandOutput = function(command, args) {
+  let result = spawnSync(command, args, { encoding: 'utf8' });
+  if (result.error || result.status !== 0) { return ''; }
+  return `${result.stdout || ''}${result.stderr || ''}`;
+}
+
+DashPlatform.prototype.interfaceIsMonitor = function(interfaceName) {
+  let output = this.commandOutput('iw', ['dev', interfaceName, 'info']);
+  if (/\btype\s+monitor\b/i.test(output)) { return true; }
+
+  output = this.commandOutput('iwconfig', [interfaceName]);
+  return /\bMode:Monitor\b/i.test(output);
+}
+
+DashPlatform.prototype.tcpdumpArgs = function(self) {
+  let sa = [self.dumpname, '-i', self.config.interface, '--immediate-mode'];
+  if (!self.interfaceIsMonitor(self.config.interface)) { sa.push('--monitor-mode'); }
+  sa.push('-t', '-S', '-q', '-N', '-l', '-e', 'broadcast');
+  return sa;
+}
+
 DashPlatform.prototype.spawnDump = (self) => {
     var sa;
 
@@ -209,7 +231,7 @@ DashPlatform.prototype.spawnDump = (self) => {
       sa = [self.dumpname, self.config.interface, '--berlin', 1];
     } else {
       self.dumpname = 'tcpdump';
-      sa = [self.dumpname, '-i', self.config.interface, '--immediate-mode', '--monitor-mode', '-t', '-S', '-q', '-N', '-l', '-e', 'broadcast'];
+      sa = self.tcpdumpArgs(self);
       }
     
     self.wifidump = spawn('sudo', sa);
@@ -278,8 +300,6 @@ DashPlatform.prototype.handleError = (self, data) => {
     let o  = require('os');
     let ou = o.userInfo().username || "unknown";
     let oh = o.hostname            || "unknown";
-    let ot = o.type                || "unknown";
-    let or = o.release             || "unknown";
         
     for (let line of lines) {     
       if (/suppressed|packets/.test(line))  { continue; }
@@ -300,8 +320,8 @@ DashPlatform.prototype.handleError = (self, data) => {
       self.log(`\x1b[31m[ERROR]\x1b[0m ${line}`); 
       
       if (/doesn't support monitor mode/.test(line)) {
-        self.log(`\x1b[33m[INFO]\x1b[0m tcpdump may have bug preventing it from functioning with your device in your ${or} ${ot} environment`);
-        self.log(`\x1b[33m[INFO]\x1b[0m consult the README for a workaround alternative`);
+        self.log(`\x1b[33m[INFO]\x1b[0m tcpdump could not place interface \x1b[4;97m${self.config.interface}\x1b[0m in monitor mode`);
+        self.log(`\x1b[33m[INFO]\x1b[0m place the interface in monitor mode before starting Homebridge or enable airodump-ng; see the README`);
         }
       }
 }

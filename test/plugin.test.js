@@ -202,6 +202,63 @@ test('does not spawn a capture process after shutdown begins', () => {
   assert.equal(platform.wifidump, null);
 });
 
+test('detects monitor mode from iw without requiring iwconfig', () => {
+  const Platform = loadPlatform();
+  const api = { on() {} };
+  const platform = new Platform(() => {}, { debug: 1 }, api);
+  const commands = [];
+
+  platform.commandOutput = (command) => {
+    commands.push(command);
+    return command === 'iw' ? 'Interface wlan0\n\ttype monitor\n' : '';
+  };
+
+  assert.equal(platform.interfaceIsMonitor('wlan0'), true);
+  assert.deepEqual(commands, ['iw']);
+});
+
+test('falls back to iwconfig when iw does not report monitor mode', () => {
+  const Platform = loadPlatform();
+  const api = { on() {} };
+  const platform = new Platform(() => {}, { debug: 1 }, api);
+  const commands = [];
+
+  platform.commandOutput = (command) => {
+    commands.push(command);
+    return command === 'iwconfig' ? 'wlan0  IEEE 802.11  Mode:Monitor' : '';
+  };
+
+  assert.equal(platform.interfaceIsMonitor('wlan0'), true);
+  assert.deepEqual(commands, ['iw', 'iwconfig']);
+});
+
+test('omits tcpdump monitor-mode request when interface is already in monitor mode', () => {
+  const Platform = loadPlatform();
+  const api = { on() {} };
+  const platform = new Platform(() => {}, { interface: 'wlan0', debug: 1 }, api);
+
+  platform.dumpname = 'tcpdump';
+  platform.interfaceIsMonitor = () => true;
+
+  const args = platform.tcpdumpArgs(platform);
+
+  assert.equal(args.includes('--monitor-mode'), false);
+  assert.deepEqual(args.slice(0, 4), ['tcpdump', '-i', 'wlan0', '--immediate-mode']);
+});
+
+test('keeps tcpdump monitor-mode request when interface is not already in monitor mode', () => {
+  const Platform = loadPlatform();
+  const api = { on() {} };
+  const platform = new Platform(() => {}, { interface: 'wlan0', debug: 1 }, api);
+
+  platform.dumpname = 'tcpdump';
+  platform.interfaceIsMonitor = () => false;
+
+  const args = platform.tcpdumpArgs(platform);
+
+  assert.equal(args.includes('--monitor-mode'), true);
+});
+
 test('prefers tcpdump SA address when BSSID appears first', () => {
   const { platform, accessory } = makePacketPlatform('tcpdump');
   let triggered = null;

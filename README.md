@@ -77,7 +77,7 @@ This plugin is a fork of jourdant's [homebridge-amazondash-ng](https://github.co
 1. **Administrator privileges are required for these steps**
 1. Set up a WiFi device with monitor mode capability
 2. Test `tcpdump` is present on your system and install if needed
-3. Run `sudo tcpdump --monitor-mode` standalone with the WiFi device (i.e. `-i` and the WiFi interface name) to test usage and visibility of Dash activity
+3. Test `tcpdump` standalone with the WiFi device. If the interface is already in monitor mode, use `sudo tcpdump -i INTERFACE`; otherwise add `--monitor-mode` to let `tcpdump`/libpcap attempt to enable monitor mode
 4. Give the `homebridge` user permission to also `sudo tcpdump` without a password
 6. Install this plugin: `npm install -g homebridge-amazondash-mac`
 7. Update the *Homebridge Amazondash MAC* plugin's config.json via the plugin's settings
@@ -126,7 +126,7 @@ This plugin is a fork of jourdant's [homebridge-amazondash-ng](https://github.co
 ```
 
 ### Interface
-`Interface` refers to the monitoring WiFi interface for `tcpdump` to listen on. Once the WiFi monitoring interface is properly set up, this identifier is reported by the `iwconfig` or `tcpdump -D` command.
+`Interface` refers to the monitoring WiFi interface for `tcpdump` to listen on. Once the WiFi monitoring interface is properly set up, this identifier is reported by the `iwconfig` or `tcpdump -D` command. The plugin checks the configured interface with `iw` and then `iwconfig`; if it is already in monitor mode, the plugin omits `tcpdump`'s `--monitor-mode` request.
 
 ### Debug
 * `Silent` (`0`) No reporting.
@@ -215,11 +215,16 @@ This plugin uses `tcpdump`'s ability to report on MAC addresses visible to the W
 * [Ubuntu Man Page for tcpdump](http://manpages.ubuntu.com/manpages/trusty/man8/tcpdump.8.html)
 
 ### Testing `tcpdump`
-* Test `tcpdump` stand-alone with the WiFi monitoring interface name (`wlan0` is for example only):
+* If the WiFi interface is already in monitor mode, test `tcpdump` stand-alone with the WiFi monitoring interface name (`wlan0` is for example only):
+```
+sudo tcpdump -i wlan0
+```
+* If the WiFi interface is not already in monitor mode, `--monitor-mode` asks `tcpdump`/libpcap to attempt to put it there:
 ```
 sudo tcpdump -i wlan0 --monitor-mode
 ```
-* Note: It has been seen that `tcpdump` may fail with `--monitor-mode` with the error "That device doesn't support monitor mode" although the device is reporting it is in and seemingly working in monitor mode via `iwconfig`, and demonstrated to work in an alternate OS version. This issue has been seen with the PAU06 device in *Jammy Jellyfish Ubuntu*. Under these conditions, using `airodump-ng` as an alternative to `tcpdump` is likely a workable option. To use this option, follow the instructions for `tcpdump` but install `aircrack-ng` and permit `airodump-ng` to be run via `sudo` without a password. Enable the setting *Use airodump-ng instead of tcpdump* in this plugin's settings.
+* Some driver/libpcap combinations may report `That device doesn't support monitor mode` for the second command even when the interface has already been placed in monitor mode by `iw`, `iwconfig`, `airmon-ng`, NetworkManager configuration or another method. If `iw dev wlan0 info` reports `type monitor` or `iwconfig` reports `Mode:Monitor`, retry `tcpdump` without `--monitor-mode`. If the plain `tcpdump -i wlan0` command captures packets, `tcpdump` itself is working correctly; the failure was the request to change interface mode, not packet capture.
+* The plugin checks the configured interface with `iw` first and `iwconfig` second. When monitor mode is already reported, it omits `--monitor-mode`. When monitor mode is not detected, it retains `--monitor-mode` so `tcpdump`/libpcap can attempt to enable it. `airodump-ng` remains available as an alternative capture method if `tcpdump` is not usable in a particular environment. To use this option, install `aircrack-ng`, permit `airodump-ng` to be run via `sudo` without a password, and enable *Use airodump-ng instead of tcpdump* in this plugin's settings.
 
 ### Installing `tcpdump`
 * If the above test failed because `tcpdump` is not installed, install `tcpdump`:

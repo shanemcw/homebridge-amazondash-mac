@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## 4.0.0-alpha.4 - 2026-09-13
+
+Monitor-mode handling compatibility alpha.
+
+### Changed
+
+- Detect whether the configured WiFi interface is already in monitor mode using `iw`, with `iwconfig` as a fallback.
+- Omit `tcpdump --monitor-mode` when the interface is already in monitor mode, avoiding libpcap mode-switch failures on otherwise working monitor interfaces.
+- Preserve `--monitor-mode` when monitor mode is not detected so `tcpdump`/libpcap can still attempt to enable it.
+- Replace the old generic tcpdump-bug diagnostic with guidance specific to monitor-mode setup.
+- Clarify standalone tcpdump testing and retain `airodump-ng` as an alternate capture method.
+- Add regression tests for monitor-mode detection and tcpdump argument selection.
+
+### User action
+
+- No configuration changes are required.
+- Existing installations that preconfigure their WiFi interface in monitor mode should no longer need the `airodump-ng` workaround solely because `tcpdump --monitor-mode` reports that monitor mode is unsupported.
+- Installations that rely on `tcpdump` to request monitor mode continue to use `--monitor-mode` when the interface is not already reported as monitor mode.
+
 ## 4.0.0-alpha.3 - 2026-09-13
 
 Runtime correctness and shutdown lifecycle alpha.
