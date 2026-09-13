@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## 4.0.0-alpha.3 - 2026-09-13
+
+Runtime correctness and shutdown lifecycle alpha.
+
+### Changed
+
+- Preserve `debug: 0` instead of replacing it with the default debug level.
+- Remove and unregister accessories regardless of the configured debug level.
+- Guard tcpdump listening-message parsing when an interface match is not present.
+- Listen for Homebridge shutdown, stop the active capture process, clear pending restart timers, and prevent capture respawn after shutdown begins.
+- Added regression tests for debug level zero, accessory removal, malformed listening output, shutdown cleanup, and capture restart prevention.
+
+### User action
+
+- No configuration changes are required.
+- `debug: 0` once again behaves as an explicit silent debug selection.
+- Capture restart behavior is unchanged during normal runtime; automatic restart is only suppressed during Homebridge shutdown.
+
 ## 4.0.0-alpha.2 - 2026-09-12
 
 tcpdump source-address parsing fix.
