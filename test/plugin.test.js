@@ -107,6 +107,101 @@ test('normalizes configured alias MAC addresses', () => {
   assert.equal(platform.alias['AA:BB:CC:DD:EE:01'], '11:22:33:44:55:66');
 });
 
+test('preserves debug level zero and defaults missing debug to one', () => {
+  const Platform = loadPlatform();
+  const api = { on() {} };
+  const silentPlatform = new Platform(() => {}, { debug: 0 }, api);
+  const defaultPlatform = new Platform(() => {}, {}, api);
+
+  assert.equal(silentPlatform.debug, 0);
+  assert.equal(defaultPlatform.debug, 1);
+});
+
+test('removes accessories even when debug level is zero', () => {
+  const Platform = loadPlatform();
+  let unregistered = null;
+  let logCount = 0;
+  const api = {
+    on() {},
+    unregisterPlatformAccessories(pluginName, platformName, accessories) {
+      assert.equal(pluginName, 'homebridge-amazondash-mac');
+      assert.equal(platformName, 'AmazonDash-MAC');
+      unregistered = accessories;
+    }
+  };
+  const platform = new Platform(() => { logCount++; }, { debug: 0 }, api);
+  const accessory = {
+    displayName: 'Silent Button',
+    context: {
+      mac: 'AA:BB:CC:DD:EE:FF'
+    }
+  };
+
+  platform.accessories[accessory.context.mac] = accessory;
+  platform.removeAccessory(accessory);
+
+  assert.deepEqual(unregistered, [accessory]);
+  assert.equal(platform.accessories[accessory.context.mac], undefined);
+  assert.equal(logCount, 0);
+});
+
+test('handles listening output that does not contain an interface match', () => {
+  const Platform = loadPlatform();
+  const messages = [];
+  const api = { on() {} };
+  const platform = new Platform((message) => { messages.push(message); }, { debug: 1 }, api);
+
+  platform.dumpname = 'tcpdump';
+
+  assert.doesNotThrow(() => {
+    platform.handleError(platform, 'listening without interface details');
+  });
+  assert.equal(messages.length, 1);
+});
+
+test('handles Homebridge shutdown and clears pending capture restart', () => {
+  const Platform = loadPlatform();
+  let shutdownHandler = null;
+  let killed = false;
+  const api = {
+    on(event, listener) {
+      if (event === 'shutdown') {
+        shutdownHandler = listener;
+      }
+    }
+  };
+  const platform = new Platform(() => {}, { debug: 1 }, api);
+
+  platform.restartTimer = setTimeout(() => {}, 60000);
+  platform.wifidump = {
+    killed: false,
+    kill() {
+      this.killed = true;
+      killed = true;
+    }
+  };
+
+  assert.equal(typeof shutdownHandler, 'function');
+  shutdownHandler();
+
+  assert.equal(platform.shuttingDown, true);
+  assert.equal(platform.restartTimer, null);
+  assert.equal(killed, true);
+});
+
+test('does not spawn a capture process after shutdown begins', () => {
+  const Platform = loadPlatform();
+  const api = { on() {} };
+  const platform = new Platform(() => {}, { debug: 1 }, api);
+
+  platform.shuttingDown = true;
+
+  assert.doesNotThrow(() => {
+    platform.spawnDump(platform);
+  });
+  assert.equal(platform.wifidump, null);
+});
+
 test('prefers tcpdump SA address when BSSID appears first', () => {
   const { platform, accessory } = makePacketPlatform('tcpdump');
   let triggered = null;
