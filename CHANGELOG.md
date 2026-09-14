@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 4.0.0-beta.1 - 2026-09-14
+
+Homebridge 2 compatibility beta.
+
+### Changed
+
+- Promote the 4.0.0 Homebridge 2 compatibility work from alpha to beta.
+- Update Express to `^4.22.3` and refresh the dependency lockfile.
+- Rename the prerelease development branch to `release/4.0` and update CI accordingly.
+- Retain the existing 3.x configuration and runtime behavior except for the documented 4.0 compatibility fixes.
+
+### User action
+
+- No configuration changes are required.
+
 ## 4.0.0-alpha.4 - 2026-09-13
 
 Monitor-mode handling compatibility alpha.
