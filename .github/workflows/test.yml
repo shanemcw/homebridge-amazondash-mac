@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - master
-      - alpha/homebridge-v2
+      - release/4.0
   pull_request:
     branches:
       - master
