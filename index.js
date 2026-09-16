@@ -2,8 +2,9 @@
 //   forked from jourdant/homebridge-amazondash-ng
 //    forked from KhaosT/homebridge-amazondash
 
-const express = require('express');
-const spawn   = require('child_process').spawn;
+const express   = require('express');
+const spawn     = require('child_process').spawn;
+const spawnSync = require('child_process').spawnSync;
 
 var Accessory, Service, Characteristic, UUIDGen;
 
@@ -21,7 +22,7 @@ function DashPlatform(log, config, api) {
   self.config       = config                   || { "platform": "AmazonDash-MAC" };
   self.buttons      = self.config.buttons      || [];
   self.timeout      = self.config.timeout      || 7500; // rate limit greater than connection attempt time in ms
-  self.debug        = self.config.debug        || 1; // 0-4, 10
+  self.debug        = self.config.debug        ?? 1; // 0-4, 10
   self.manufacturer = self.config.manufacturer || "Amazon";
   self.alias        = {}; // additional MACs can masquerade as accessory MAC via this alias map
   self.accessories  = {};
@@ -29,9 +30,12 @@ function DashPlatform(log, config, api) {
   self.init         = null;
   self.wifidump     = null;
   self.dumpname     = null;
+  self.shuttingDown = false;
+  self.restartTimer = null;
   if (api) {
     self.api = api;
     self.api.on('didFinishLaunching', self.didFinishLaunching.bind(this));
+    self.api.on('shutdown', self.handleShutdown.bind(this));
   }
 }
 
@@ -42,7 +46,6 @@ DashPlatform.prototype.configureAccessory = function(accessory) {
     return;
     }
   if (self.debug >= 2) { self.log(`\x1b[4;97m${accessory.displayName}\x1b[0m is ${accessory.context.mac}`); }
-  accessory.reachable = true;
   accessory.context.lastTriggered = null;
   accessory
     .getService(Service.AccessoryInformation)
@@ -184,9 +187,47 @@ DashPlatform.prototype.didFinishLaunching = function() {
     }
 }
 
+DashPlatform.prototype.handleShutdown = function() {
+  var self = this;
+  self.shuttingDown = true;
+  if (self.restartTimer) {
+    clearTimeout(self.restartTimer);
+    self.restartTimer = null;
+    }
+  if (self.wifidump && !self.wifidump.killed && typeof self.wifidump.kill === 'function') {
+    self.wifidump.kill();
+    }
+}
+
+DashPlatform.prototype.commandOutput = function(command, args) {
+  const env = { ...process.env };
+  if (process.platform === 'linux') {
+    env.PATH = [env.PATH, '/usr/local/sbin', '/usr/sbin', '/sbin'].filter(Boolean).join(':');
+    }
+  let result = spawnSync(command, args, { encoding: 'utf8', env });
+  if (result.error || result.status !== 0) { return ''; }
+  return `${result.stdout || ''}${result.stderr || ''}`;
+}
+
+DashPlatform.prototype.interfaceIsMonitor = function(interfaceName) {
+  let output = this.commandOutput('iw', ['dev', interfaceName, 'info']);
+  if (/\btype\s+monitor\b/i.test(output)) { return true; }
+
+  output = this.commandOutput('iwconfig', [interfaceName]);
+  return /\bMode:Monitor\b/i.test(output);
+}
+
+DashPlatform.prototype.tcpdumpArgs = function(self) {
+  let sa = [self.dumpname, '-i', self.config.interface, '--immediate-mode'];
+  if (!self.interfaceIsMonitor(self.config.interface)) { sa.push('--monitor-mode'); }
+  sa.push('-t', '-S', '-q', '-N', '-l', '-e', 'broadcast');
+  return sa;
+}
+
 DashPlatform.prototype.spawnDump = (self) => {
     var sa;
-    
+
+    if (self.shuttingDown) { return; }
     self.init = false;
     
     if (self.config.airInstead) {
@@ -194,7 +235,7 @@ DashPlatform.prototype.spawnDump = (self) => {
       sa = [self.dumpname, self.config.interface, '--berlin', 1];
     } else {
       self.dumpname = 'tcpdump';
-      sa = [self.dumpname, '-i', self.config.interface, '--immediate-mode', '--monitor-mode', '-t', '-S', '-q', '-N', '-l', '-e', 'broadcast'];
+      sa = self.tcpdumpArgs(self);
       }
     
     self.wifidump = spawn('sudo', sa);
@@ -203,17 +244,22 @@ DashPlatform.prototype.spawnDump = (self) => {
     self.wifidump.stderr.on('data', (data) => { self.handleError(self, data);  });
     
     self.wifidump.on('exit',  (code) => {
-        self.log(`\x1b[31m[ERROR]\x1b[0m ${self.dumpname} exited, code ${code}`); 
+        if (!self.shuttingDown) { self.log(`\x1b[31m[ERROR]\x1b[0m ${self.dumpname} exited, code ${code}`); }
         });
                                 
     self.wifidump.on('close', (code) => {
+        self.wifidump = null;
+        if (self.shuttingDown) { return; }
         self.log(`\x1b[31m[ERROR]\x1b[0m ${self.dumpname} closed, code ${code}`);
         self.log(`\x1b[33m[INFO]\x1b[0m attempting ${self.dumpname} restart in 60 seconds`);
-        setTimeout( () => { self.spawnDump(self); }, 60000 );
+        self.restartTimer = setTimeout( () => {
+          self.restartTimer = null;
+          if (!self.shuttingDown) { self.spawnDump(self); }
+          }, 60000 );
         });
         
     self.wifidump.on('error', (err)  => {
-        self.log(`\x1b[31m[ERROR]\x1b[0m ${self.dumpname} error ${err}`);        
+        if (!self.shuttingDown) { self.log(`\x1b[31m[ERROR]\x1b[0m ${self.dumpname} error ${err}`); }
         });
 }
 
@@ -226,8 +272,10 @@ DashPlatform.prototype.handleOutput = (self, data) => {
     let lines = ('' + data).match(/[^\r\n]+/g);
     if (!lines) { return; }
     for (let line of lines) {
-      // grab all MAC addresses, use first per line; alias to primary MAC
-      var matches = line.toUpperCase().match(/(?:[\dA-Fa-f]{2}\:){5}(?:[\dA-Fa-f]{2})/g);
+      // prefer tcpdump's labeled source address; preserve first-MAC parsing for other capture formats
+      let upperLine = line.toUpperCase();
+      let source = (self.dumpname === 'tcpdump') ? upperLine.match(/\bSA:((?:[\dA-F]{2}:){5}[\dA-F]{2})\b/) : null;
+      var matches = source ? [source[1]] : upperLine.match(/(?:[\dA-F]{2}:){5}[\dA-F]{2}/g);
       if (matches && (matches.length > 0)) {
         if ((self.debug == 3) || (self.debug == 4)) {
            if (!self.saw[matches[0]]) {
@@ -256,8 +304,6 @@ DashPlatform.prototype.handleError = (self, data) => {
     let o  = require('os');
     let ou = o.userInfo().username || "unknown";
     let oh = o.hostname            || "unknown";
-    let ot = o.type                || "unknown";
-    let or = o.release             || "unknown";
         
     for (let line of lines) {     
       if (/suppressed|packets/.test(line))  { continue; }
@@ -269,7 +315,7 @@ DashPlatform.prototype.handleError = (self, data) => {
         }
       if (/listening/.test(line)) { 
         let n = line.match(/on ([^\s,]+)/);
-        if (n[1]) {
+        if (n && n[1]) {
           if (self.debug >= 1) { self.log(`Wifi listening on interface \x1b[4;97m${n[1]}\x1b[0m`); }
           continue;
           }
@@ -278,8 +324,8 @@ DashPlatform.prototype.handleError = (self, data) => {
       self.log(`\x1b[31m[ERROR]\x1b[0m ${line}`); 
       
       if (/doesn't support monitor mode/.test(line)) {
-        self.log(`\x1b[33m[INFO]\x1b[0m tcpdump may have bug preventing it from functioning with your device in your ${or} ${ot} environment`);
-        self.log(`\x1b[33m[INFO]\x1b[0m consult the README for a workaround alternative`);
+        self.log(`\x1b[33m[INFO]\x1b[0m tcpdump could not place interface \x1b[4;97m${self.config.interface}\x1b[0m in monitor mode`);
+        self.log(`\x1b[33m[INFO]\x1b[0m place the interface in monitor mode before starting Homebridge or enable airodump-ng; see the README`);
         }
       }
 }
@@ -303,7 +349,6 @@ DashPlatform.prototype.addAccessory = function(button) {
     }
   var uuid = UUIDGen.generate(button.MAC);
   var newAccessory = new Accessory(button.name, uuid, 15); // 15 = PROGRAMMABLE_SWITCH_TCTYPE
-  newAccessory.reachable = true;
   newAccessory.context.doublePress   = button.doublePress;
   newAccessory.context.lastTriggered = null;
   newAccessory.context.mac           = button.MAC;
@@ -341,16 +386,13 @@ DashPlatform.prototype.addAccessory = function(button) {
 
 DashPlatform.prototype.removeAccessory = function(accessory) {
   var self = this;
-  if (!accessory.context.mac) {
+  if (!accessory || !accessory.context || !accessory.context.mac) {
     self.log(`\x1b[31m[ERROR]\x1b[0m removeAccessory called for malformed accessory (e.g. "MAC" missing)`);
     return;
     }
-  if (accessory) {
-   if (self.debug >= 1) { self.log(`\x1b[33m[INFO]\x1b[0m removing \x1b[4;97m${accessory.displayName}\x1b[0m`);
-    self.api.unregisterPlatformAccessories("homebridge-amazondash-mac", "AmazonDash-MAC", [accessory]);
-    delete self.accessories[accessory.context.mac];
-    }
-  }
+  if (self.debug >= 1) { self.log(`\x1b[33m[INFO]\x1b[0m removing \x1b[4;97m${accessory.displayName}\x1b[0m`); }
+  self.api.unregisterPlatformAccessories("homebridge-amazondash-mac", "AmazonDash-MAC", [accessory]);
+  delete self.accessories[accessory.context.mac];
 }
 
 DashPlatform.prototype.configurationRequestHandler = function(context, request, callback) { }
