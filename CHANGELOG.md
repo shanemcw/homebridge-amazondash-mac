@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 4.0.0-beta.2 - 2026-09-16
 
 ### Fixed
 
