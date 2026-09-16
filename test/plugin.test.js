@@ -306,3 +306,42 @@ test('keeps first-MAC parsing for airodump-ng', () => {
 
   assert.equal(triggered, accessory);
 });
+
+
+test('detects monitor mode with administrative tools outside the service PATH', () => {
+  const fs = require('node:fs');
+  const vm = require('node:vm');
+  const source = fs.readFileSync(require.resolve('../index'), 'utf8');
+
+  for (const tool of ['iw', 'iwconfig']) {
+    for (const servicePATH of ['/opt/homebridge/bin:/usr/bin:/bin', undefined]) {
+      const originalEnv = { TEST_SENTINEL: 'preserved' };
+      if (servicePATH !== undefined) { originalEnv.PATH = servicePATH; }
+      const sandbox = {
+        module: { exports: {} },
+        process: { platform: 'linux', env: originalEnv },
+        require(name) {
+          if (name !== 'child_process') { return require(name); }
+          return {
+            spawnSync(command, args, options) {
+              const childEnv = options.env || originalEnv;
+              assert.equal(childEnv.TEST_SENTINEL, 'preserved');
+              assert.equal(originalEnv.PATH, servicePATH);
+              const paths = (childEnv.PATH || '').split(':').filter(Boolean);
+              if (servicePATH) { assert.ok(childEnv.PATH.startsWith(servicePATH)); }
+              if (command !== tool || !paths.includes('/usr/sbin')) {
+                return { error: { code: 'ENOENT' }, status: null };
+                }
+              assert.equal(args.includes('wlan0'), true);
+              return { status: 0, stdout: tool === 'iw' ? 'type monitor' : 'Mode:Monitor' };
+              }
+            };
+          }
+        };
+      vm.runInNewContext(source, sandbox);
+      const platform = new sandbox.DashPlatform(() => {}, { interface: 'wlan0' });
+      platform.dumpname = 'tcpdump';
+      assert.equal(platform.tcpdumpArgs(platform).includes('--monitor-mode'), false);
+      }
+    }
+});

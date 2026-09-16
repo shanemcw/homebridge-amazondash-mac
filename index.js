@@ -200,7 +200,11 @@ DashPlatform.prototype.handleShutdown = function() {
 }
 
 DashPlatform.prototype.commandOutput = function(command, args) {
-  let result = spawnSync(command, args, { encoding: 'utf8' });
+  const env = { ...process.env };
+  if (process.platform === 'linux') {
+    env.PATH = [env.PATH, '/usr/local/sbin', '/usr/sbin', '/sbin'].filter(Boolean).join(':');
+    }
+  let result = spawnSync(command, args, { encoding: 'utf8', env });
   if (result.error || result.status !== 0) { return ''; }
   return `${result.stdout || ''}${result.stderr || ''}`;
 }

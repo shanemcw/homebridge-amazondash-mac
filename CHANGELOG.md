@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- Find Linux monitor-mode inspection tools in standard administrative directories even when Homebridge's PATH omits them, preventing an unnecessary `tcpdump --monitor-mode` request for an interface already in monitor mode.
+
 ## 4.0.0-beta.1 - 2026-09-14
 
 Homebridge 2 compatibility beta.
