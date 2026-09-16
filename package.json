@@ -42,6 +42,7 @@
   "displayName": "Amazon Dash MAC",
   "license": "ISC",
   "main": "index.js",
+  "types": "index.d.ts",
   "name": "homebridge-amazondash-mac",
   "repository": {
     "type": "git",
