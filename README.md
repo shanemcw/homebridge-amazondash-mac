@@ -195,7 +195,7 @@ sudo iw dev
 * Test the WiFi device can be put in monitor mode (`wlan0` is for example only) (method one):
 ```
 sudo ip link set wlan0 down
-sudo iw wlan0 set monitor none
+sudo iw dev wlan0 set type monitor
 sudo ip link set wlan0 up
 ```
 * Test the WiFi device can be put in monitor mode (`wlan0` is for example only) (method two):
@@ -224,7 +224,9 @@ sudo tcpdump -i wlan0
 sudo tcpdump -i wlan0 --monitor-mode
 ```
 * Some driver/libpcap combinations may report `That device doesn't support monitor mode` for the second command even when the interface has already been placed in monitor mode by `iw`, `iwconfig`, `airmon-ng`, NetworkManager configuration or another method. If `iw dev wlan0 info` reports `type monitor` or `iwconfig` reports `Mode:Monitor`, retry `tcpdump` without `--monitor-mode`. If the plain `tcpdump -i wlan0` command captures packets, `tcpdump` itself is working correctly; the failure was the request to change interface mode, not packet capture.
-* The plugin checks the configured interface with `iw` first and `iwconfig` second. When monitor mode is already reported, it omits `--monitor-mode`. When monitor mode is not detected, it retains `--monitor-mode` so `tcpdump`/libpcap can attempt to enable it. `airodump-ng` remains available as an alternative capture method if `tcpdump` is not usable in a particular environment. To use this option, install `aircrack-ng`, permit `airodump-ng` to be run via `sudo` without a password, and enable *Use airodump-ng instead of tcpdump* in this plugin's settings.
+* The plugin checks the configured interface with `iw` first and `iwconfig` second. When monitor mode is already reported, it omits `--monitor-mode`. When monitor mode is not detected, it retains `--monitor-mode` so `tcpdump`/libpcap can attempt to enable it. If `tcpdump` reports that the device does not support monitor mode, the plugin does not keep retrying the same fatal failure every 60 seconds. Correct the interface setup and restart Homebridge to try again; transient capture exits still restart automatically.
+* Monitor mode may not survive a host reboot, and a network manager may reclaim the interface in managed mode. Configure the host to restore monitor mode before Homebridge starts when needed. The exact persistent configuration is distribution- and network-manager-specific.
+* `airodump-ng` remains available as an alternative capture method if `tcpdump` is not usable in a particular environment. To use this option, install `aircrack-ng`, permit `airodump-ng` to be run via `sudo` without a password, and enable *Use airodump-ng instead of tcpdump* in this plugin's settings.
 
 ### Installing `tcpdump`
 * If the above test failed because `tcpdump` is not installed, install `tcpdump`:

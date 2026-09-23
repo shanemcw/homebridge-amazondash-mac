@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## 4.0.0-beta.3 - 2026-09-23
+
+### Fixed
+
+- Stop retrying `tcpdump` every 60 seconds after a deterministic monitor-mode-not-supported failure; correct the interface setup and restart Homebridge to try again. Transient capture exits continue to restart automatically.
+
+### Documentation
+
+- Correct the modern `iw` monitor-mode example and clarify that system network management may restore managed mode after a reboot.
+
+### User action
+
+- If the configured WiFi interface returns to managed mode, arrange for the host to restore monitor mode before Homebridge starts, then restart Homebridge.
+
 ## 4.0.0-beta.2 - 2026-09-16
 
 ### Fixed

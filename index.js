@@ -32,6 +32,7 @@ function DashPlatform(log, config, api) {
   self.dumpname     = null;
   self.shuttingDown = false;
   self.restartTimer = null;
+  self.captureRestartBlocked = false;
   if (api) {
     self.api = api;
     self.api.on('didFinishLaunching', self.didFinishLaunching.bind(this));
@@ -224,6 +225,19 @@ DashPlatform.prototype.tcpdumpArgs = function(self) {
   return sa;
 }
 
+DashPlatform.prototype.scheduleDumpRestart = function(self) {
+    if (self.captureRestartBlocked) {
+      self.log(`\x1b[33m[INFO]\x1b[0m not restarting ${self.dumpname} after a fatal capture error; correct the interface setup and restart Homebridge`);
+      return;
+      }
+
+    self.log(`\x1b[33m[INFO]\x1b[0m attempting ${self.dumpname} restart in 60 seconds`);
+    self.restartTimer = setTimeout( () => {
+      self.restartTimer = null;
+      if (!self.shuttingDown) { self.spawnDump(self); }
+      }, 60000 );
+}
+
 DashPlatform.prototype.spawnDump = (self) => {
     var sa;
 
@@ -251,11 +265,7 @@ DashPlatform.prototype.spawnDump = (self) => {
         self.wifidump = null;
         if (self.shuttingDown) { return; }
         self.log(`\x1b[31m[ERROR]\x1b[0m ${self.dumpname} closed, code ${code}`);
-        self.log(`\x1b[33m[INFO]\x1b[0m attempting ${self.dumpname} restart in 60 seconds`);
-        self.restartTimer = setTimeout( () => {
-          self.restartTimer = null;
-          if (!self.shuttingDown) { self.spawnDump(self); }
-          }, 60000 );
+        self.scheduleDumpRestart(self);
         });
         
     self.wifidump.on('error', (err)  => {
@@ -323,7 +333,8 @@ DashPlatform.prototype.handleError = (self, data) => {
 
       self.log(`\x1b[31m[ERROR]\x1b[0m ${line}`); 
       
-      if (/doesn't support monitor mode/.test(line)) {
+      if (self.dumpname === 'tcpdump' && /(?:doesn't|does not) support monitor mode/i.test(line)) {
+        self.captureRestartBlocked = true;
         self.log(`\x1b[33m[INFO]\x1b[0m tcpdump could not place interface \x1b[4;97m${self.config.interface}\x1b[0m in monitor mode`);
         self.log(`\x1b[33m[INFO]\x1b[0m place the interface in monitor mode before starting Homebridge or enable airodump-ng; see the README`);
         }
