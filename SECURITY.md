@@ -9,4 +9,4 @@
 
 ## Reporting a Vulnerability
 
-Report a security vunerability through the *issues* interface in this repository.
+Report a security vulnerability through the *issues* interface in this repository.
