@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- Keep automatic `tcpdump` recovery enabled when a monitor-mode failure occurs after capture previously reached a healthy listening state, allowing USB WiFi adapter disconnect/reconnect events to recover without undoing the beta.3 protection for configurations that never successfully capture.
+
 ## 4.0.0-beta.3 - 2026-09-23
 
 ### Fixed

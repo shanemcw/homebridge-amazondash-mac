@@ -217,6 +217,27 @@ test('does not restart tcpdump after a fatal monitor-mode error', () => {
   assert.ok(messages.some((message) => /not restarting tcpdump after a fatal capture error/.test(message)));
 });
 
+test('keeps tcpdump restart enabled after a previously healthy capture loses monitor mode', () => {
+  const Platform = loadPlatform();
+  const messages = [];
+  const api = { on() {} };
+  const platform = new Platform((message) => { messages.push(message); }, { interface: 'wlan0', debug: 1 }, api);
+
+  platform.dumpname = 'tcpdump';
+  platform.spawnDump = () => {};
+  platform.handleError(platform, 'tcpdump: listening on wlan0, link-type IEEE802_11_RADIO');
+  platform.handleError(platform, "wlan0: That device doesn't support monitor mode");
+  platform.scheduleDumpRestart(platform);
+
+  assert.equal(platform.captureEverSucceeded, true);
+  assert.equal(platform.captureRestartBlocked, false);
+  assert.notEqual(platform.restartTimer, null);
+  assert.ok(messages.some((message) => /treating this as a transient interface failure/.test(message)));
+
+  platform.handleShutdown();
+  assert.equal(platform.restartTimer, null);
+});
+
 test('keeps restart behavior for transient capture exits', () => {
   const Platform = loadPlatform();
   const api = { on() {} };

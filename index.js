@@ -33,6 +33,7 @@ function DashPlatform(log, config, api) {
   self.shuttingDown = false;
   self.restartTimer = null;
   self.captureRestartBlocked = false;
+  self.captureEverSucceeded = false;
   if (api) {
     self.api = api;
     self.api.on('didFinishLaunching', self.didFinishLaunching.bind(this));
@@ -326,6 +327,7 @@ DashPlatform.prototype.handleError = (self, data) => {
       if (/listening/.test(line)) { 
         let n = line.match(/on ([^\s,]+)/);
         if (n && n[1]) {
+          self.captureEverSucceeded = true;
           if (self.debug >= 1) { self.log(`Wifi listening on interface \x1b[4;97m${n[1]}\x1b[0m`); }
           continue;
           }
@@ -334,9 +336,13 @@ DashPlatform.prototype.handleError = (self, data) => {
       self.log(`\x1b[31m[ERROR]\x1b[0m ${line}`); 
       
       if (self.dumpname === 'tcpdump' && /(?:doesn't|does not) support monitor mode/i.test(line)) {
-        self.captureRestartBlocked = true;
+        self.captureRestartBlocked = !self.captureEverSucceeded;
         self.log(`\x1b[33m[INFO]\x1b[0m tcpdump could not place interface \x1b[4;97m${self.config.interface}\x1b[0m in monitor mode`);
-        self.log(`\x1b[33m[INFO]\x1b[0m place the interface in monitor mode before starting Homebridge or enable airodump-ng; see the README`);
+        if (self.captureRestartBlocked) {
+          self.log(`\x1b[33m[INFO]\x1b[0m place the interface in monitor mode before starting Homebridge or enable airodump-ng; see the README`);
+        } else {
+          self.log(`\x1b[33m[INFO]\x1b[0m capture previously succeeded; treating this as a transient interface failure and keeping automatic restart enabled`);
+          }
         }
       }
 }
