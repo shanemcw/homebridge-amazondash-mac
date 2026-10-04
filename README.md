@@ -10,6 +10,12 @@ This plugin also provides an optional web API to push the Amazon Dash buttons vi
 
 This project is a fork of jourdant's [homebridge-amazondash-ng](https://github.com/jourdant/homebridge-amazondash-ng), which is a fork of KhaosT's [homebridge-amazondash](https://github.com/KhaosT/homebridge-amazondash).
 
+## Version 4.0.0
+
+Version 4.0.0 is the stable Homebridge 2 compatibility release. It supports Homebridge `^1.6.0 || ^2.0.0` and Node.js `^22.12.0 || ^24.0.0`.
+
+Existing 3.3.1 and 4.0 prerelease configurations, button identities, aliases, and HomeKit automations are preserved; no configuration changes or accessory resets are required. The runtime code is unchanged from the production-tested 4.0.0-beta.4. See [CHANGELOG.md](CHANGELOG.md) for the release history.
+
 ## About Amazon Dash Buttons
 An Amazon Dash button is a discontinued proprietary device for ordering consumer goods over the Internet.
 
@@ -224,7 +230,7 @@ sudo tcpdump -i wlan0
 sudo tcpdump -i wlan0 --monitor-mode
 ```
 * Some driver/libpcap combinations may report `That device doesn't support monitor mode` for the second command even when the interface has already been placed in monitor mode by `iw`, `iwconfig`, `airmon-ng`, NetworkManager configuration or another method. If `iw dev wlan0 info` reports `type monitor` or `iwconfig` reports `Mode:Monitor`, retry `tcpdump` without `--monitor-mode`. If the plain `tcpdump -i wlan0` command captures packets, `tcpdump` itself is working correctly; the failure was the request to change interface mode, not packet capture.
-* The plugin checks the configured interface with `iw` first and `iwconfig` second. When monitor mode is already reported, it omits `--monitor-mode`. When monitor mode is not detected, it retains `--monitor-mode` so `tcpdump`/libpcap can attempt to enable it. If `tcpdump` reports that the device does not support monitor mode, the plugin does not keep retrying the same fatal failure every 60 seconds. Correct the interface setup and restart Homebridge to try again; transient capture exits still restart automatically.
+* The plugin checks the configured interface with `iw` first and `iwconfig` second. When monitor mode is already reported, it omits `--monitor-mode`. When monitor mode is not detected, it retains `--monitor-mode` so `tcpdump`/libpcap can attempt to enable it. If capture has never reached a healthy listening state and `tcpdump` reports that the device does not support monitor mode, automatic retries stop. Correct the interface setup and restart Homebridge to try again. If capture previously succeeded, a later monitor-mode failure is treated as transient and capture retries every 60 seconds, allowing recovery after a USB WiFi adapter disconnect/reconnect once the host restores a usable interface. Other transient capture exits also restart automatically.
 * Monitor mode may not survive a host reboot, and a network manager may reclaim the interface in managed mode. Configure the host to restore monitor mode before Homebridge starts when needed. The exact persistent configuration is distribution- and network-manager-specific.
 * `airodump-ng` remains available as an alternative capture method if `tcpdump` is not usable in a particular environment. To use this option, install `aircrack-ng`, permit `airodump-ng` to be run via `sudo` without a password, and enable *Use airodump-ng instead of tcpdump* in this plugin's settings.
 

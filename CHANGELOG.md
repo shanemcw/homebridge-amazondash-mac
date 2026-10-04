@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## 4.0.0 - 2026-10-04
+
+Stable release of the Homebridge 2 compatibility work, with the runtime code unchanged from the production-tested 4.0.0-beta.4.
+
+### Changed
+
+- Support Homebridge `^1.6.0 || ^2.0.0` and Node.js `^22.12.0 || ^24.0.0`.
+- Preserve explicit `debug: 0`, remove stale accessories at every debug level, and stop capture processes and pending restarts during Homebridge shutdown.
+- Prefer tcpdump's labeled source MAC address while retaining the fallback and `airodump-ng` parsing behavior.
+- Detect interfaces already in monitor mode, including when Linux administrative tools are outside Homebridge's PATH.
+- Stop repeated monitor-mode failures when capture has never succeeded; retain automatic recovery after a previously healthy capture loses the interface temporarily.
+- Include TypeScript declarations and Express `^4.22.3`.
+- Clarify capture recovery documentation, install locked dependencies in test CI, and update the CodeQL workflow to a supported action version.
+
+### User action
+
+- No plugin configuration changes or accessory resets are required when upgrading from 3.3.1 or the 4.0 prereleases.
+- Ensure the supported Node.js and Homebridge versions are installed before upgrading.
+- The host OS and driver must still provide a usable monitor-mode interface; arrange for monitor mode to be restored before Homebridge starts when needed.
+
 ## 4.0.0-beta.4 - 2026-09-28
 
 ### Fixed
