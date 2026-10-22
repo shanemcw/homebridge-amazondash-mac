@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## 4.1.0 - 2026-10-22
+
+### Added
+
+- Optional per-button **HomeKit Button Revision** (`homeKitRevision`) to recreate a button with a new HomeKit identity when Apple Home retains its old press capabilities. Increase the revision and restart Homebridge; other buttons keep their identities.
+- Configuration help and runtime warnings explaining that a recreated button's Apple Home room, scenes, and press assignments may need to be set up again.
+- Regression coverage for legacy identity preservation, targeted replacement, repeated refreshes, ordinary restarts, cache recreation, invalid revisions, and single/double event delivery after refresh.
+
+### Fixed
+
+- Treat omitted `doublePress` and explicit `false` as equivalent when restoring cached buttons, avoiding unnecessary remove/register cycles.
+- Refresh the locked transitive `proxy-addr` dependency to 2.0.8; the dependency audit reports no known vulnerabilities.
+
+### User action
+
+- No configuration changes or resets are required when upgrading. Revision `0` (or no revision) retains existing identities.
+- If Apple Home keeps the old press options after changing **Enable Double Press**, record that button's assignments, increase **HomeKit Button Revision** to a new higher number, save, and restart Homebridge. Set up the replacement button's room, scenes, and press actions afterward.
+- Keep the new revision saved. Decreasing/removing it or reusing an earlier value may restore an old cached identity. The plugin cannot migrate Apple Home assignments.
+- Apple Home discovery of the revision-based replacement has not yet been verified live; automated lifecycle tests validate the new identity and advertised capabilities.
+
 ## 4.0.0 - 2026-10-04
 
 Stable release of the Homebridge 2 compatibility work, with the runtime code unchanged from the production-tested 4.0.0-beta.4.
