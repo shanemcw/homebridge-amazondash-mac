@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 4.1.1 - 2026-10-22
+
+### Fixed
+
+- Show **HomeKit Button Revision** as a numeric input instead of a range slider, while retaining the non-negative safe-integer limits.
+
 ## 4.1.0 - 2026-10-22
 
 ### Added

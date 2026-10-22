@@ -64,6 +64,7 @@
                 "default"     : 0,
                 "minimum"     : 0,
                 "maximum"     : 9007199254740991,
+                "x-schema-form": { "type": "number" },
                 "description" : "To recreate only this button in Apple Home, increase this number (0 to 1, then 2 for another refresh) and restart Homebridge. WARNING: Apple Home may remove this button's room, scenes, and press assignments; set them up again afterward. Keep the new number saved. Do not decrease it or reuse an earlier number. Leave at 0 unless a refresh is needed."
                 }
         }
