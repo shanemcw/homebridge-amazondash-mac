@@ -94,10 +94,17 @@ DashPlatform.prototype.didFinishLaunching = function() {
       return;
       }
     b.MAC = b.MAC.toUpperCase().replace(/([\dA-F]{2}\B)/g, "$1:");
+    let revision = self.getHomeKitRevision(b);
+    if (revision === null) { continue; }
+    let cached = self.accessories[b.MAC];
     if (!self.accessories[b.MAC]) { 
         self.addAccessory(b); 
-    } else if (b.doublePress !== self.accessories[b.MAC].context.doublePress) {
-        self.removeAccessory(self.accessories[b.MAC]);
+    } else if (Boolean(b.doublePress) !== Boolean(cached.context.doublePress)
+            || revision !== (cached.context.homeKitRevision ?? 0)) {
+        if (revision !== (cached.context.homeKitRevision ?? 0)) {
+          self.log(`\x1b[33m[WARN]\x1b[0m recreating ${b.name} in Apple Home with HomeKit button revision ${revision}; set up this button's room and press actions again`);
+          }
+        self.removeAccessory(cached);
         self.addAccessory(b);
         }
     }
@@ -358,15 +365,28 @@ DashPlatform.prototype.dashEventWithAccessory = function(self, accessory) {
   accessory.context.lastTriggered = new Date();
 }
 
+DashPlatform.prototype.getHomeKitRevision = function(button) {
+  let revision = button.homeKitRevision ?? 0;
+  if (!Number.isSafeInteger(revision) || revision < 0) {
+    this.log(`\x1b[31m[ERROR]\x1b[0m HomeKit button revision for ${button.name || 'unnamed button'} must be a non-negative safe integer`);
+    return null;
+    }
+  return revision;
+}
+
 DashPlatform.prototype.addAccessory = function(button) {
   var self = this;
   if (!button.MAC) {
     self.log(`\x1b[31m[ERROR]\x1b[0m required button settings (e.g. "MAC") are not yet specified`);
     return;
     }
-  var uuid = UUIDGen.generate(button.MAC);
+  let revision = self.getHomeKitRevision(button);
+  if (revision === null) { return; }
+  // revision zero preserves existing identities; an explicit revision change recreates only this button
+  var uuid = UUIDGen.generate(revision === 0 ? button.MAC : `${button.MAC}:homeKitRevision:${revision}`);
   var newAccessory = new Accessory(button.name, uuid, 15); // 15 = PROGRAMMABLE_SWITCH_TCTYPE
-  newAccessory.context.doublePress   = button.doublePress;
+  newAccessory.context.doublePress   = Boolean(button.doublePress);
+  newAccessory.context.homeKitRevision = revision;
   newAccessory.context.lastTriggered = null;
   newAccessory.context.mac           = button.MAC;
   if (button.alias && (button.alias.length > 0)) {

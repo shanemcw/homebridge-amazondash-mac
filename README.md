@@ -10,11 +10,11 @@ This plugin also provides an optional web API to push the Amazon Dash buttons vi
 
 This project is a fork of jourdant's [homebridge-amazondash-ng](https://github.com/jourdant/homebridge-amazondash-ng), which is a fork of KhaosT's [homebridge-amazondash](https://github.com/KhaosT/homebridge-amazondash).
 
-## Version 4.0.0
+## Version 4.1.0
 
-Version 4.0.0 is the stable Homebridge 2 compatibility release. It supports Homebridge `^1.6.0 || ^2.0.0` and Node.js `^22.12.0 || ^24.0.0`.
+Version 4.1.0 adds an optional per-button Apple Home refresh control and retains the Homebridge 2 compatibility introduced in 4.0.0. It supports Homebridge `^1.6.0 || ^2.0.0` and Node.js `^22.12.0 || ^24.0.0`.
 
-Existing 3.3.1 and 4.0 prerelease configurations, button identities, aliases, and HomeKit automations are preserved; no configuration changes or accessory resets are required. The runtime code is unchanged from the production-tested 4.0.0-beta.4. See [CHANGELOG.md](CHANGELOG.md) for the release history.
+Existing configurations, button identities, aliases, and HomeKit automations are preserved when upgrading to 4.1.0. The new per-button HomeKit Button Revision is optional and defaults to 0; increase it only when you deliberately want to recreate that button in Apple Home. See [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## About Amazon Dash Buttons
 An Amazon Dash button is a discontinued proprietary device for ordering consumer goods over the Internet.
@@ -74,10 +74,24 @@ This plugin is a fork of jourdant's [homebridge-amazondash-ng](https://github.co
 * Do you have a pretty cool idea? Share your experience in [this repository's GitHub discussion](https://github.com/shanemcw/homebridge-amazondash-mac/discussions/3).
 
 ### Single-Press and Double-Press Events
-* As of version 3.0.0, *Double Press* functionality is enabled on a per-button basis. If you have been using *Double Press* functionality prior to version 3.0.0, re-enable this functionality as needed per-button via `Settings`. It is likely you'll need to remove those device's caches via the "Remove Single Cached Accessory" function of the "Manage Cached Accessories" section of the Homebridge Settings accessible from the Homebridge UI's upper right menu icon.
+* *Double Press* functionality is enabled on a per-button basis via `Settings`. Restart Homebridge after changing it. If Apple Home retains the old press options, use [Refreshing a button in Apple Home](#refreshing-a-button-in-apple-home).
 * To execute a *Double Press,* on a *Double Press*-enabled button, press the button a second time within 15 seconds *after the lights go dark* from this first press.
 * If action(s) are specified for a *Single Press,* they will be immediately executed at that first press, even if a subsequent second press executes a *Double Press* event and actions.
 * In this context, *Double Press* is more accurately described as "second press" and is best suited for canceling, stopping or pausing the preceding *Single Press* actions, or executing additional but optional actions to those already executed by the *Single Press.* 
+
+### Refreshing a Button in Apple Home
+
+Apple Home can retain a button's original press capabilities after *Enable Double Press* changes. Removing its Homebridge cache entry can recreate the same HomeKit identity, leaving Apple Home's saved options unchanged.
+
+Starting with 4.1.0, each button has an optional **HomeKit Button Revision** (`homeKitRevision`, default `0`). To refresh one button:
+
+1. Record that button's room, scenes, and press assignments in Apple Home, including any automatic turn-off duration.
+2. Set *Enable Double Press* as desired, increase **HomeKit Button Revision** from `0` to `1` (or to the next unused higher number), save, and restart Homebridge.
+3. Let Apple Home discover the replacement button, then restore its room and press assignments.
+
+**Changing the revision creates a replacement accessory. Apple Home may remove the old button's room, scene references, and automations. The plugin cannot transfer Apple Home assignments to the replacement.** Other buttons are unaffected. Leave the new revision saved; ordinary restarts and cache recreation retain that identity. Do not decrease it, remove it, or reuse an earlier number, since that can return to an older cached identity.
+
+Leaving the revision at `0`, or omitting it, preserves the pre-4.1.0 identity. Changing *Enable Double Press* alone does not opt into a new identity. No bridge reset or manual cache deletion is needed for a revision refresh. This mechanism has automated identity/lifecycle coverage; Apple Home discovery of the new revision still requires live verification before relying on it for a particular Home setup.
 
 ## Installation Summary
 1. **Administrator privileges are required for these steps**
@@ -282,7 +296,7 @@ This method is creating a new file in the `/etc/sudoers.d` directory. All files 
 
 As of version 3.0.0, *Double Press* functionality is enabled on a per-button basis. If you have been using *Double Press* functionality prior to version 3.0.0, re-enable this functionality as needed per-button via this plugin's settings.
 
-It is likely you'll need to remove those device's caches via the "Remove Single Cached Accessory" function of the "Manage Cached Accessories" section of the Homebridge Settings accessible from the Homebridge UI's upper right "three dots" menu icon.
+If Apple Home retains the old press options, use [Refreshing a Button in Apple Home](#refreshing-a-button-in-apple-home) on 4.1.0 or later. Earlier releases may require removing the button from the plugin configuration for a complete Homebridge startup, waiting until it disappears from Apple Home, then adding it back. Record and restore its Apple Home assignments when recreating it.
 
 ## Pushing Buttons Virtually via the Web API
 
