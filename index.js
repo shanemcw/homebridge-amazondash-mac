@@ -95,7 +95,7 @@ DashPlatform.prototype.didFinishLaunching = function() {
       }
     b.MAC = b.MAC.toUpperCase().replace(/([\dA-F]{2}\B)/g, "$1:");
     let revision = self.getHomeKitRevision(b);
-    if (revision === null) { return; }
+    if (revision === null) { continue; }
     let cached = self.accessories[b.MAC];
     if (!self.accessories[b.MAC]) { 
         self.addAccessory(b); 

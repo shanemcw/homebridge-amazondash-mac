@@ -59,14 +59,15 @@ function makePlatform(buttons, debug = 1) {
   const registrations = [];
   const removals = [];
   const messages = [];
+  const captureStarts = [];
   const api = {
     on() {},
     registerPlatformAccessories(plugin, name, accessories) { registrations.push(...accessories); },
     unregisterPlatformAccessories(plugin, name, accessories) { removals.push(...accessories); }
   };
   const platform = new Platform(message => messages.push(message), { interface: 'test0', debug, buttons }, api);
-  platform.spawnDump = () => {};
-  return { platform, registrations, removals, messages };
+  platform.spawnDump = current => captureStarts.push(current);
+  return { platform, registrations, removals, messages, captureStarts };
 }
 
 function makeCachedAccessory(mac = targetMAC, revision, doublePress = false) {
@@ -181,8 +182,24 @@ test('rejects invalid revisions before removing an existing button', async t => 
       assert.deepEqual(current.removals, []);
       assert.deepEqual(current.registrations, []);
       assert.ok(current.messages.some(message => /revision.*integer/i.test(message)));
+      assert.equal(current.captureStarts.length, 1);
     });
   }
+});
+
+test('an invalid revision does not prevent other buttons from starting', () => {
+  const cached = makeCachedAccessory();
+  const current = makePlatform([
+    { name: 'Existing Button', MAC: targetMAC, homeKitRevision: -1 },
+    { name: 'Other Button', MAC: otherMAC }
+  ]);
+  current.platform.configureAccessory(cached);
+  current.platform.didFinishLaunching();
+
+  assert.equal(current.platform.accessories[targetMAC], cached);
+  assert.equal(current.registrations.length, 1);
+  assert.equal(current.registrations[0], current.platform.accessories[otherMAC]);
+  assert.equal(current.captureStarts.length, 1);
 });
 
 test('direct accessory creation also validates revision values', () => {
