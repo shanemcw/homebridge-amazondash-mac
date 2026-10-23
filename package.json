@@ -51,7 +51,7 @@
   "scripts": {
     "test": "node --test"
   },
-  "version": "4.1.1",
+  "version": "4.2.0-beta.1",
   "dependencies": {
     "express": "^4.22.3"
   }

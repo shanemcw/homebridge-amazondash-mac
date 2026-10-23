@@ -34,6 +34,8 @@ function DashPlatform(log, config, api) {
   self.restartTimer = null;
   self.captureRestartBlocked = false;
   self.captureEverSucceeded = false;
+  self.captureStarted = false;
+  self.captureTriedAlternate = false;
   if (api) {
     self.api = api;
     self.api.on('didFinishLaunching', self.didFinishLaunching.bind(this));
@@ -226,16 +228,16 @@ DashPlatform.prototype.interfaceIsMonitor = function(interfaceName) {
   return /\bMode:Monitor\b/i.test(output);
 }
 
-DashPlatform.prototype.tcpdumpArgs = function(self) {
+DashPlatform.prototype.tcpdumpArgs = function(self, monitorMode) {
   let sa = [self.dumpname, '-i', self.config.interface, '--immediate-mode'];
-  if (!self.interfaceIsMonitor(self.config.interface)) { sa.push('--monitor-mode'); }
+  if (monitorMode ?? !self.interfaceIsMonitor(self.config.interface)) { sa.push('--monitor-mode'); }
   sa.push('-t', '-S', '-q', '-N', '-l', '-e', 'broadcast');
   return sa;
 }
 
 DashPlatform.prototype.scheduleDumpRestart = function(self) {
     if (self.captureRestartBlocked) {
-      self.log(`\x1b[33m[INFO]\x1b[0m not restarting ${self.dumpname} after a fatal capture error; correct the interface setup and restart Homebridge`);
+      self.log(`\x1b[33m[INFO]\x1b[0m both tcpdump forms failed to start monitor capture; automatic retries stopped`);
       return;
       }
 
@@ -246,33 +248,57 @@ DashPlatform.prototype.scheduleDumpRestart = function(self) {
       }, 60000 );
 }
 
-DashPlatform.prototype.spawnDump = (self) => {
+DashPlatform.prototype.spawnDump = (self, monitorMode) => {
     var sa;
 
     if (self.shuttingDown) { return; }
     self.init = false;
+    self.captureStarted = false;
+    self.captureLinkInvalid = false;
+    if (monitorMode === undefined) {
+      self.captureTriedAlternate = false;
+      self.captureModeFailed = false;
+      }
     
     if (self.config.airInstead) {
       self.dumpname = 'airodump-ng';
       sa = [self.dumpname, self.config.interface, '--berlin', 1];
     } else {
       self.dumpname = 'tcpdump';
-      sa = self.tcpdumpArgs(self);
+      sa = self.tcpdumpArgs(self, monitorMode);
       }
+    self.captureRequestedMonitor = sa.includes('--monitor-mode');
     
-    self.wifidump = spawn('sudo', sa);
+    self.wifidump = spawn('sudo', ['-n', ...sa]);
+    let stderr = '';
     
     self.wifidump.stdout.on('data', (data) => { self.handleOutput(self, data); });
-    self.wifidump.stderr.on('data', (data) => { self.handleError(self, data);  });
+    self.wifidump.stderr.on('data', (data) => {
+        stderr += data;
+        let lines = stderr.split(/\r\n|[\r\n]/);
+        stderr = lines.pop();
+        for (let line of lines) { self.handleError(self, line); }
+        });
     
     self.wifidump.on('exit',  (code) => {
         if (!self.shuttingDown) { self.log(`\x1b[31m[ERROR]\x1b[0m ${self.dumpname} exited, code ${code}`); }
         });
                                 
     self.wifidump.on('close', (code) => {
+        if (stderr) { self.handleError(self, stderr); }
         self.wifidump = null;
         if (self.shuttingDown) { return; }
         self.log(`\x1b[31m[ERROR]\x1b[0m ${self.dumpname} closed, code ${code}`);
+        if (self.dumpname === 'tcpdump' && !self.captureStarted) {
+          if (!self.captureTriedAlternate) {
+            self.captureTriedAlternate = true;
+            let monitorMode = !self.captureRequestedMonitor;
+            self.log(`\x1b[33m[INFO]\x1b[0m retrying tcpdump ${monitorMode ? 'with' : 'without'} --monitor-mode`);
+            self.spawnDump(self, monitorMode);
+            return;
+            }
+          self.captureRestartBlocked = self.captureModeFailed && !self.captureEverSucceeded;
+          }
         self.scheduleDumpRestart(self);
         });
         
@@ -286,6 +312,7 @@ DashPlatform.prototype.handleOutput = (self, data) => {
       self.log(`Wifi listening on interface \x1b[4;97m${self.config.interface}\x1b[0m`);
       self.init = true;
       }
+  if (self.captureLinkInvalid) { return; }
   if ( (self.debug == 3) || (self.debug == 4) || (self.accessories && Object.keys(self.accessories).length > 0) ) {
     let lines = ('' + data).match(/[^\r\n]+/g);
     if (!lines) { return; }
@@ -334,6 +361,14 @@ DashPlatform.prototype.handleError = (self, data) => {
       if (/listening/.test(line)) { 
         let n = line.match(/on ([^\s,]+)/);
         if (n && n[1]) {
+          if (self.dumpname === 'tcpdump' && !/link-type (?:IEEE802_11(?:_RADIO(?:_AVS)?)?|PRISM_HEADER)\b/.test(line)) {
+            self.log(`\x1b[31m[ERROR]\x1b[0m tcpdump is listening without raw WiFi frames; this capture cannot detect unassociated Dash buttons`);
+            self.captureLinkInvalid = true;
+            self.captureModeFailed = true;
+            if (self.wifidump) { self.wifidump.kill(); }
+            continue;
+            }
+          self.captureStarted = true;
           self.captureEverSucceeded = true;
           if (self.debug >= 1) { self.log(`Wifi listening on interface \x1b[4;97m${n[1]}\x1b[0m`); }
           continue;
@@ -341,15 +376,8 @@ DashPlatform.prototype.handleError = (self, data) => {
         }
 
       self.log(`\x1b[31m[ERROR]\x1b[0m ${line}`); 
-      
       if (self.dumpname === 'tcpdump' && /(?:doesn't|does not) support monitor mode/i.test(line)) {
-        self.captureRestartBlocked = !self.captureEverSucceeded;
-        self.log(`\x1b[33m[INFO]\x1b[0m tcpdump could not place interface \x1b[4;97m${self.config.interface}\x1b[0m in monitor mode`);
-        if (self.captureRestartBlocked) {
-          self.log(`\x1b[33m[INFO]\x1b[0m place the interface in monitor mode before starting Homebridge or enable airodump-ng; see the README`);
-        } else {
-          self.log(`\x1b[33m[INFO]\x1b[0m capture previously succeeded; treating this as a transient interface failure and keeping automatic restart enabled`);
-          }
+        self.captureModeFailed = true;
         }
       }
 }
