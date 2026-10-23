@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const initialize = require('../index');
 
-function loadPlatform() {
+function loadPlatform(register = initialize) {
   let Platform;
 
   const homebridge = {
@@ -35,7 +35,7 @@ function loadPlatform() {
     }
   };
 
-  initialize(homebridge);
+  register(homebridge);
   assert.equal(typeof Platform, 'function');
   return Platform;
 }
@@ -88,6 +88,47 @@ function makePacketPlatform(dumpname = 'tcpdump') {
   platform.alias['AA:BB:CC:DD:EE:FF'] = 'AA:BB:CC:DD:EE:FF';
 
   return { platform, accessory };
+}
+
+function makeCapturePlatform(config = {}, interfaceIsMonitor = false) {
+  const fs = require('node:fs');
+  const vm = require('node:vm');
+  const { EventEmitter } = require('node:events');
+  const captures = [];
+  const timers = [];
+  const messages = [];
+  const sandbox = {
+    module: { exports: {} },
+    process,
+    setTimeout(callback, delay) {
+      const timer = { callback, delay };
+      timers.push(timer);
+      return timer;
+    },
+    clearTimeout(timer) { timer.cleared = true; },
+    require(name) {
+      if (name !== 'child_process') { return require(name); }
+      return {
+        spawn(command, args) {
+          assert.equal(command, 'sudo');
+          assert.equal(args[0], '-n');
+          const child = new EventEmitter();
+          child.stdout = new EventEmitter();
+          child.stderr = new EventEmitter();
+          child.args = Array.from(args);
+          child.kill = () => { child.killed = true; };
+          captures.push(child);
+          return child;
+        }
+      };
+    }
+  };
+  vm.runInNewContext(fs.readFileSync(require.resolve('../index'), 'utf8'), sandbox);
+  const Platform = loadPlatform(sandbox.module.exports);
+  const platform = new Platform((message) => messages.push(message), { interface: 'wlan0', ...config });
+  platform.interfaceIsMonitor = () => interfaceIsMonitor;
+  platform.spawnDump(platform);
+  return { platform, captures, timers, messages };
 }
 
 test('registers as the expected dynamic Homebridge platform', () => {
@@ -202,40 +243,32 @@ test('does not spawn a capture process after shutdown begins', () => {
   assert.equal(platform.wifidump, null);
 });
 
-test('does not restart tcpdump after a fatal monitor-mode error', () => {
-  const Platform = loadPlatform();
-  const messages = [];
-  const api = { on() {} };
-  const platform = new Platform((message) => { messages.push(message); }, { interface: 'wlan0', debug: 1 }, api);
-
-  platform.dumpname = 'tcpdump';
-  platform.handleError(platform, "wlan0: That device doesn't support monitor mode");
-  platform.scheduleDumpRestart(platform);
-
-  assert.equal(platform.captureRestartBlocked, true);
-  assert.equal(platform.restartTimer, null);
-  assert.ok(messages.some((message) => /not restarting tcpdump after a fatal capture error/.test(message)));
+test('retries without monitor-mode only after the failed tcpdump process closes', () => {
+  const { platform, captures, timers } = makeCapturePlatform();
+  assert.equal(captures[0].args.includes('--monitor-mode'), true);
+  captures[0].stderr.emit('data', "tcpdump: wlan0: That device doesn't support monitor mode\n");
+  captures[0].emit('exit', 1);
+  assert.equal(captures.length, 1);
+  captures[0].emit('close', 1);
+  assert.equal(captures.length, 2);
+  assert.equal(captures[1].args.includes('--monitor-mode'), false);
+  assert.equal(platform.captureRestartBlocked, false);
+  assert.equal(timers.length, 0);
 });
 
-test('keeps tcpdump restart enabled after a previously healthy capture loses monitor mode', () => {
-  const Platform = loadPlatform();
-  const messages = [];
-  const api = { on() {} };
-  const platform = new Platform((message) => { messages.push(message); }, { interface: 'wlan0', debug: 1 }, api);
-
-  platform.dumpname = 'tcpdump';
-  platform.spawnDump = () => {};
-  platform.handleError(platform, 'tcpdump: listening on wlan0, link-type IEEE802_11_RADIO');
-  platform.handleError(platform, "wlan0: That device doesn't support monitor mode");
-  platform.scheduleDumpRestart(platform);
-
-  assert.equal(platform.captureEverSucceeded, true);
+test('checks interface state again after a healthy capture exits', () => {
+  const { platform, captures, timers } = makeCapturePlatform();
+  captures[0].stderr.emit('data', "wlan0: That device doesn't support monitor mode\n");
+  captures[0].emit('close', 1);
+  captures[1].stderr.emit('data', 'tcpdump: listening on wlan0, link-type IEEE802_11_RADIO (802.11 plus radiotap header)\n');
+  assert.equal(platform.captureStarted, true);
+  captures[1].emit('close', 1);
   assert.equal(platform.captureRestartBlocked, false);
-  assert.notEqual(platform.restartTimer, null);
-  assert.ok(messages.some((message) => /treating this as a transient interface failure/.test(message)));
-
-  platform.handleShutdown();
-  assert.equal(platform.restartTimer, null);
+  assert.equal(timers[0].delay, 60000);
+  platform.interfaceIsMonitor = () => true;
+  timers[0].callback();
+  assert.equal(captures.length, 3);
+  assert.equal(captures[2].args.includes('--monitor-mode'), false);
 });
 
 test('keeps restart behavior for transient capture exits', () => {
@@ -253,14 +286,103 @@ test('keeps restart behavior for transient capture exits', () => {
 });
 
 test('recognizes the alternate tcpdump monitor-mode failure wording', () => {
-  const Platform = loadPlatform();
-  const api = { on() {} };
-  const platform = new Platform(() => {}, { interface: 'wlan0', debug: 1 }, api);
+  const { captures } = makeCapturePlatform();
+  captures[0].stderr.emit('data', 'wlan0: This device does not support monitor mode\n');
+  captures[0].emit('close', 1);
+  assert.equal(captures.length, 2);
+  assert.equal(captures[1].args.includes('--monitor-mode'), false);
+});
 
-  platform.dumpname = 'tcpdump';
-  platform.handleError(platform, 'wlan0: This device does not support monitor mode');
+test('handles monitor-mode errors split across stderr chunks and an unterminated last line', () => {
+  const { captures } = makeCapturePlatform();
+  captures[0].stderr.emit('data', 'tcpdump: wlan0: This device does not sup');
+  captures[0].stderr.emit('data', 'port monitor mode');
+  captures[0].emit('close', 1);
+  assert.equal(captures.length, 2);
+  assert.equal(captures[1].args.includes('--monitor-mode'), false);
+});
 
+test('does not mistake managed-mode Ethernet capture for healthy monitor capture', () => {
+  const { platform, captures, messages } = makeCapturePlatform();
+  let triggered = false;
+  platform.dashEventWithAccessory = () => { triggered = true; };
+  platform.accessories['AA:BB:CC:DD:EE:FF'] = { context: { lastTriggered: null } };
+  platform.alias['AA:BB:CC:DD:EE:FF'] = 'AA:BB:CC:DD:EE:FF';
+  captures[0].stderr.emit('data', "wlan0: That device doesn't support monitor mode\n");
+  captures[0].emit('close', 1);
+  captures[1].stderr.emit('data', 'tcpdump: listening on wlan0, link-type EN10MB (Ethernet)\n');
+  captures[1].stdout.emit('data', 'AA:BB:CC:DD:EE:FF > ff:ff:ff:ff:ff:ff');
+  assert.equal(triggered, false);
+  assert.equal(platform.captureEverSucceeded, false);
+  assert.equal(captures[1].killed, true);
+  captures[1].emit('close', null);
+  assert.equal(captures.length, 2);
   assert.equal(platform.captureRestartBlocked, true);
+  assert.ok(messages.some((message) => /cannot detect unassociated Dash buttons/.test(message)));
+  assert.equal(messages.some((message) => /Wifi listening/.test(message)), false);
+});
+
+test('stops after both tcpdump forms fail at startup without switching capture tools', () => {
+  const { platform, captures, timers } = makeCapturePlatform();
+  captures[0].stderr.emit('data', "wlan0: That device doesn't support monitor mode\n");
+  captures[0].emit('close', 1);
+  captures[1].stderr.emit('data', 'tcpdump: wlan0: That device is not up\n');
+  captures[1].emit('close', 1);
+  assert.equal(captures.length, 2);
+  assert.ok(captures.every((capture) => capture.args[1] === 'tcpdump'));
+  assert.equal(platform.captureRestartBlocked, true);
+  assert.equal(timers.length, 0);
+});
+
+test('keeps retrying a temporarily missing adapter even before the first healthy capture', () => {
+  const { platform, captures, timers } = makeCapturePlatform();
+  captures[0].stderr.emit('data', 'tcpdump: wlan0: No such device exists\n');
+  captures[0].emit('close', 1);
+  captures[1].stderr.emit('data', 'tcpdump: wlan0: No such device exists\n');
+  captures[1].emit('close', 1);
+  assert.equal(platform.captureRestartBlocked, false);
+  assert.equal(timers[0].delay, 60000);
+});
+
+test('tries the monitor flag if an initially plain capture fails after a stale mode probe', () => {
+  const { captures } = makeCapturePlatform({}, true);
+  assert.equal(captures[0].args.includes('--monitor-mode'), false);
+  captures[0].stderr.emit('data', 'tcpdump: wlan0: That device is not up\n');
+  captures[0].emit('close', 1);
+  assert.equal(captures[1].args[1], 'tcpdump');
+  assert.equal(captures[1].args.includes('--monitor-mode'), true);
+  captures[1].stderr.emit('data', 'tcpdump: listening on wlan0, link-type IEEE802_11_RADIO\n');
+});
+
+test('keeps transient recovery after a previously healthy tcpdump fails both forms', () => {
+  const { platform, captures, timers } = makeCapturePlatform();
+  captures[0].stderr.emit('data', 'tcpdump: listening on wlan0, link-type IEEE802_11_RADIO\n');
+  captures[0].emit('close', 1);
+  timers[0].callback();
+  captures[1].stderr.emit('data', "wlan0: That device doesn't support monitor mode\n");
+  captures[1].emit('close', 1);
+  captures[2].stderr.emit('data', 'tcpdump: wlan0: That device is not up\n');
+  captures[2].emit('close', 1);
+  assert.equal(platform.captureRestartBlocked, false);
+  assert.equal(timers[1].delay, 60000);
+});
+
+test('shutdown suppresses fallback even if an error is pending', () => {
+  const { platform, captures, timers } = makeCapturePlatform();
+  captures[0].stderr.emit('data', "wlan0: That device doesn't support monitor mode\n");
+  platform.handleShutdown();
+  captures[0].emit('close', 1);
+  assert.equal(captures.length, 1);
+  assert.equal(timers.length, 0);
+});
+
+test('preserves explicit airodump selection without trying tcpdump', () => {
+  const { captures, timers } = makeCapturePlatform({ airInstead: true });
+  assert.equal(captures[0].args[1], 'airodump-ng');
+  captures[0].emit('close', 1);
+  assert.equal(timers[0].delay, 60000);
+  timers[0].callback();
+  assert.equal(captures[1].args[1], 'airodump-ng');
 });
 
 test('detects monitor mode from iw without requiring iwconfig', () => {

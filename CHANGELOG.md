@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## 4.2.0-beta.1 - 2026-10-23
+
+### Added
+
+- Choose tcpdump's `--monitor-mode` flag from the detected interface state and automatically try the other form once if capture fails to start. Reject non-WiFi captures that cannot detect unassociated Dash buttons.
+
+### Fixed
+
+- Stop after both tcpdump forms fail with a monitor-mode refusal or non-WiFi link type before the first healthy capture, while retaining transient recovery and checking interface state on each restart.
+- Run capture commands with non-interactive sudo and recognize monitor-mode errors split across stderr chunks.
+
+### User action
+
+- No setting change or additional capture tool is required. The existing explicit `airodump-ng` setting retains its behavior.
+- Verified on Linux with an interface already in monitor mode: the plugin selected tcpdump without `--monitor-mode`, capture remained healthy past the previous 60-second failure window, and a physical Dash-button press succeeded. Both forms, alternate-form fallback, raw WiFi validation, retry limits, and shutdown have automated coverage; the fallback was not needed during the live startup.
+
 ## 4.1.1 - 2026-10-22
 
 ### Fixed

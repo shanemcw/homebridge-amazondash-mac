@@ -95,7 +95,7 @@ Leaving the revision at `0`, or omitting it, preserves the pre-4.1.0 identity. C
 
 ## Installation Summary
 1. **Administrator privileges are required for these steps**
-1. Set up a WiFi device with monitor mode capability
+1. Select a dedicated WiFi device with monitor mode capability
 2. Test `tcpdump` is present on your system and install if needed
 3. Test `tcpdump` standalone with the WiFi device. If the interface is already in monitor mode, use `sudo tcpdump -i INTERFACE`; otherwise add `--monitor-mode` to let `tcpdump`/libpcap attempt to enable monitor mode
 4. Give the `homebridge` user permission to also `sudo tcpdump` without a password
@@ -244,9 +244,10 @@ sudo tcpdump -i wlan0
 sudo tcpdump -i wlan0 --monitor-mode
 ```
 * Some driver/libpcap combinations may report `That device doesn't support monitor mode` for the second command even when the interface has already been placed in monitor mode by `iw`, `iwconfig`, `airmon-ng`, NetworkManager configuration or another method. If `iw dev wlan0 info` reports `type monitor` or `iwconfig` reports `Mode:Monitor`, retry `tcpdump` without `--monitor-mode`. If the plain `tcpdump -i wlan0` command captures packets, `tcpdump` itself is working correctly; the failure was the request to change interface mode, not packet capture.
-* The plugin checks the configured interface with `iw` first and `iwconfig` second. When monitor mode is already reported, it omits `--monitor-mode`. When monitor mode is not detected, it retains `--monitor-mode` so `tcpdump`/libpcap can attempt to enable it. If capture has never reached a healthy listening state and `tcpdump` reports that the device does not support monitor mode, automatic retries stop. Correct the interface setup and restart Homebridge to try again. If capture previously succeeded, a later monitor-mode failure is treated as transient and capture retries every 60 seconds, allowing recovery after a USB WiFi adapter disconnect/reconnect once the host restores a usable interface. Other transient capture exits also restart automatically.
-* Monitor mode may not survive a host reboot, and a network manager may reclaim the interface in managed mode. Configure the host to restore monitor mode before Homebridge starts when needed. The exact persistent configuration is distribution- and network-manager-specific.
-* `airodump-ng` remains available as an alternative capture method if `tcpdump` is not usable in a particular environment. To use this option, install `aircrack-ng`, permit `airodump-ng` to be run via `sudo` without a password, and enable *Use airodump-ng instead of tcpdump* in this plugin's settings.
+* The plugin checks the configured interface with `iw` first and `iwconfig` second. When monitor mode is already reported, it omits `--monitor-mode`; otherwise it asks `tcpdump`/libpcap to enable it. If capture fails to start, the plugin automatically tries the other tcpdump form once on the same interface. It verifies that tcpdump reports a raw WiFi link type before treating capture as healthy; ordinary managed-mode Ethernet capture cannot hear the unassociated Dash buttons reliably.
+* If both tcpdump forms fail with a monitor-mode refusal or non-WiFi link type before capture has ever succeeded, automatic retries stop instead of repeating a fatal startup loop. Other transient failures, and failures after a previously healthy capture, retain the 60-second restart behavior. Each new restart checks the interface state again and can try the alternate form once. Capture commands use non-interactive sudo, so missing permissions fail promptly.
+* This handles an unnecessary monitor-mode request or a stale/failed interface-mode probe automatically. Both forms still require a usable adapter and driver: omitting the flag does not itself turn a managed-mode adapter into a monitor-mode adapter. The plugin logs an error if tcpdump starts without raw WiFi frames.
+* `airodump-ng` remains available only when explicitly selected in settings. To use it, install `aircrack-ng`, permit `airodump-ng` via passwordless sudo, and enable *Use airodump-ng instead of tcpdump*.
 
 ### Installing `tcpdump`
 * If the above test failed because `tcpdump` is not installed, install `tcpdump`:
