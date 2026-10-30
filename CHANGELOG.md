@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 4.2.0 - 2026-10-30
+
+Stable release of the automatic tcpdump recovery work, with runtime code unchanged from `4.2.0-beta.1`.
+
+### Changed
+
+- Automatically choose and, when needed, retry tcpdump's monitor-mode form, validate raw WiFi capture, and retain recovery after transient failures.
+- Omit the `deprecated` package metadata field so npm displays the release normally.
+- Refresh locked `body-parser` and `qs` dependencies to patched versions; the dependency audit reports no known vulnerabilities.
+
+### User action
+
+- No configuration changes or accessory resets are required when upgrading from 4.1.1 or 4.2.0-beta.1.
+- The host still needs a usable monitor-mode WiFi adapter and passwordless sudo permission for the selected capture tool.
+
 ## 4.2.0-beta.1 - 2026-10-23
 
 ### Added
