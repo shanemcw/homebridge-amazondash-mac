@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 4.2.1 - 2026-11-12
+
+### Changed
+
+- Declare Node.js 26 LTS compatibility alongside Node.js 22 and 24, and add Node.js 26 to the test CI matrix.
+
+### User action
+
+- No configuration changes or accessory resets are required. Runtime behavior is unchanged from 4.2.0.
+
 ## 4.2.0 - 2026-10-30
 
 Stable release of the automatic tcpdump recovery work, with runtime code unchanged from `4.2.0-beta.1`.

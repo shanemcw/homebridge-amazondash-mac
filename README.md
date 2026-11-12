@@ -10,11 +10,11 @@ This plugin also provides an optional web API to push the Amazon Dash buttons vi
 
 This project is a fork of jourdant's [homebridge-amazondash-ng](https://github.com/jourdant/homebridge-amazondash-ng), which is a fork of KhaosT's [homebridge-amazondash](https://github.com/KhaosT/homebridge-amazondash).
 
-## Version 4.2.0
+## Version 4.2.1
 
-Version 4.2.0 automatically selects tcpdump's monitor-mode form and tries the alternate form once if capture fails to start. It validates raw WiFi capture and retains automatic recovery after transient failures. It supports Homebridge `^1.6.0 || ^2.0.0` and Node.js `^22.12.0 || ^24.0.0`.
+Version 4.2.1 adds declared compatibility with Node.js 26 LTS. It supports Homebridge `^1.6.0 || ^2.0.0` and Node.js `^22.12.0 || ^24.0.0 || ^26.0.0`. Runtime behavior is unchanged from 4.2.0: the plugin automatically selects tcpdump's monitor-mode form, tries the alternate form once if capture fails to start, validates raw WiFi capture, and retains automatic recovery after transient failures.
 
-Existing configurations, button identities, aliases, and HomeKit automations are preserved when upgrading to 4.2.0. The per-button HomeKit Button Revision introduced in 4.1.0 remains optional and defaults to 0; increase it only when you deliberately want to recreate that button in Apple Home. See [CHANGELOG.md](CHANGELOG.md) for the release history.
+Existing configurations, button identities, aliases, and HomeKit automations are preserved when upgrading to 4.2.1. The per-button HomeKit Button Revision introduced in 4.1.0 remains optional and defaults to 0; increase it only when you deliberately want to recreate that button in Apple Home. See [CHANGELOG.md](CHANGELOG.md) for the release history.
 
 ## About Amazon Dash Buttons
 An Amazon Dash button is a discontinued proprietary device for ordering consumer goods over the Internet.
